@@ -1,18 +1,14 @@
 import React from 'react';
-import { Heart, ArrowRight } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { FurnitureItem } from '../types';
 
 interface ProductCardProps {
   product: FurnitureItem;
-  isWishlisted: boolean;
-  onToggleWishlist: (product: FurnitureItem) => void;
   onViewDetails: (product: FurnitureItem) => void;
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({
   product,
-  isWishlisted,
-  onToggleWishlist,
   onViewDetails,
 }) => {
   return (
@@ -25,24 +21,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-300"
           loading="lazy"
         />
-
-        {/* Wishlist Button */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleWishlist(product);
-          }}
-          aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
-          className="absolute top-2.5 right-2.5 w-8 h-8 rounded-full bg-white/95 backdrop-blur-sm shadow-md flex items-center justify-center transition-transform active:scale-90 hover:scale-110 cursor-pointer z-10"
-        >
-          <Heart
-            className={`w-4 h-4 transition-colors ${
-              isWishlisted
-                ? 'fill-[#E11D2A] text-[#E11D2A]'
-                : 'text-[#E11D2A] hover:text-[#C51322]'
-            }`}
-          />
-        </button>
 
         {/* In-Stock or Tag indicator */}
         {product.originalPrice && (

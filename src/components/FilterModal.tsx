@@ -1,11 +1,11 @@
 import React from 'react';
 import { X, RotateCcw, Check } from 'lucide-react';
-import { FilterState } from '../types';
-import { CATEGORIES } from '../data/furnitureData';
+import { Category, FilterState } from '../types';
 
 interface FilterModalProps {
   isOpen: boolean;
   onClose: () => void;
+  categories: Category[];
   filters: FilterState;
   onUpdateFilters: (newFilters: FilterState) => void;
   onResetFilters: () => void;
@@ -15,6 +15,7 @@ interface FilterModalProps {
 export const FilterModal: React.FC<FilterModalProps> = ({
   isOpen,
   onClose,
+  categories,
   filters,
   onUpdateFilters,
   onResetFilters,
@@ -68,7 +69,10 @@ export const FilterModal: React.FC<FilterModalProps> = ({
               Category
             </label>
             <div className="grid grid-cols-3 gap-2">
-              {CATEGORIES.slice(0, 9).map((cat) => (
+              {categories
+                .filter((cat) => cat.isActive !== false)
+                .slice(0, 9)
+                .map((cat) => (
                 <button
                   key={cat.id}
                   onClick={() => onUpdateFilters({ ...filters, category: cat.id })}

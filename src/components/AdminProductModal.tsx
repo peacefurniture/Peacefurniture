@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Upload, Check, Trash2, RefreshCw, AlertCircle } from 'lucide-react';
-import { CategoryId, FurnitureItem } from '../types';
-import { CATEGORIES } from '../data/furnitureData';
+import { Category, CategoryId, FurnitureItem } from '../types';
 
 interface AdminProductModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (product: FurnitureItem) => void;
   initialProduct?: FurnitureItem | null;
+  categories: Category[];
 }
 
 export const AdminProductModal: React.FC<AdminProductModalProps> = ({
@@ -15,6 +15,7 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
   onClose,
   onSave,
   initialProduct,
+  categories,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragActive, setDragActive] = useState(false);
@@ -66,7 +67,7 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
     } else {
       setFormData({
         name: '',
-        category: 'dining',
+        category: categories.length > 1 ? categories[1].id : 'dining',
         price: 24999,
         originalPrice: 32000,
         description: '',
@@ -92,7 +93,7 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
       setTagInput('furniture, modern');
       setImageError('');
     }
-  }, [initialProduct, isOpen]);
+  }, [initialProduct, isOpen, categories]);
 
   if (!isOpen) return null;
 
@@ -398,13 +399,13 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
                 Category *
               </label>
               <select
-                value={formData.category || 'dining'}
+                value={formData.category || (categories.length > 1 ? categories[1].id : 'dining')}
                 onChange={(e) =>
                   setFormData({ ...formData, category: e.target.value as CategoryId })
                 }
                 className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-gray-900 focus:outline-none focus:border-[#E11D2A] focus:ring-1 focus:ring-[#E11D2A]"
               >
-                {CATEGORIES.slice(1).map((cat) => (
+                {categories.slice(1).map((cat) => (
                   <option key={cat.id} value={cat.id}>
                     {cat.name}
                   </option>

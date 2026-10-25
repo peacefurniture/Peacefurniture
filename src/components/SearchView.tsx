@@ -12,8 +12,6 @@ interface SearchViewProps {
   onOpenFilter: () => void;
   results: FurnitureItem[];
   totalResultsCount?: number;
-  wishlistIds: Set<string>;
-  onToggleWishlist: (item: FurnitureItem) => void;
   onViewDetails: (item: FurnitureItem) => void;
   activeImageSearch?: string | null;
   onClearImageSearch?: () => void;
@@ -28,8 +26,6 @@ export const SearchView: React.FC<SearchViewProps> = ({
   onOpenFilter,
   results,
   totalResultsCount,
-  wishlistIds,
-  onToggleWishlist,
   onViewDetails,
   activeImageSearch,
   onClearImageSearch,
@@ -214,8 +210,6 @@ export const SearchView: React.FC<SearchViewProps> = ({
               <ProductCard
                 key={item.id}
                 product={item}
-                isWishlisted={wishlistIds.has(item.id)}
-                onToggleWishlist={onToggleWishlist}
                 onViewDetails={onViewDetails}
               />
             ))}

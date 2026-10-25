@@ -1,20 +1,21 @@
 import React from 'react';
-import { CategoryId } from '../types';
-import { CATEGORIES } from '../data/furnitureData';
+import { Category, CategoryId } from '../types';
 
 interface CategoryGridProps {
+  categories: Category[];
   selectedCategory: CategoryId;
   onSelectCategory: (categoryId: CategoryId) => void;
 }
 
 export const CategoryGrid: React.FC<CategoryGridProps> = ({
+  categories,
   selectedCategory,
   onSelectCategory,
 }) => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 pb-2">
       <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-12 gap-2.5 sm:gap-3.5">
-        {CATEGORIES.map((cat) => {
+        {categories.filter((cat) => cat.isActive !== false).map((cat) => {
           const isSelected = selectedCategory === cat.id;
 
           return (

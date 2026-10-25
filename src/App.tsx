@@ -1,56 +1,97 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { AdminUser, CategoryId, FilterState, FurnitureItem } from './types';
-import { FURNITURE_ITEMS } from './data/furnitureData';
+import { Category, CategoryId, FilterState, FurnitureItem } from './types';
+import { CATEGORIES, FURNITURE_ITEMS } from './data/furnitureData';
 import { Header } from './components/Header';
 import { HomeView } from './components/HomeView';
 import { SearchView } from './components/SearchView';
-import { AdminAuthView } from './components/AdminAuthView';
 import { AdminView } from './components/AdminView';
 import { AdminProductModal } from './components/AdminProductModal';
+import { AdminCategoryModal } from './components/AdminCategoryModal';
 import { ProductDetailsModal } from './components/ProductDetailsModal';
 import { FilterModal } from './components/FilterModal';
 import { ImageSearchModal } from './components/ImageSearchModal';
-import { WishlistDrawer } from './components/WishlistDrawer';
 import { NavDrawer } from './components/NavDrawer';
 import { Footer } from './components/Footer';
-import { Home, Search, Heart, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { Home, Search, ShieldCheck, CheckCircle2 } from 'lucide-react';
 
 export default function App() {
   // Navigation: 'home' = Page 1 Catalogue | 'search' = Page 2 Search Furniture | 'admin' = Admin Portal
   const [currentView, setCurrentView] = useState<'home' | 'search' | 'admin'>('home');
 
-  // Admin Authentication State
-  const [adminUser, setAdminUser] = useState<AdminUser | null>(() => {
+  // Furniture Products Master State
+  const [products, setProducts] = useState<FurnitureItem[]>([]);
+  // Categories Master State
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Database Sync State
+  const [isSyncingToDb, setIsSyncingToDb] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(() => {
     try {
-      const stored = localStorage.getItem('peacefurniture_admin_session') || localStorage.getItem('homecraft_admin_session');
-      return stored ? JSON.parse(stored) : null;
+      return localStorage.getItem('peacefurniture_last_sync') || null;
     } catch {
       return null;
     }
   });
 
-  // Furniture Products Master State (stored in localStorage)
-  const [products, setProducts] = useState<FurnitureItem[]>(() => {
+  // Fetch Products & Categories from Express Backend REST API
+  const fetchDataFromApi = async () => {
+    setIsLoading(true);
     try {
-      const stored = localStorage.getItem('peacefurniture_products') || localStorage.getItem('homecraft_products');
-      if (stored) {
-        return JSON.parse(stored);
+      const [resProd, resCat] = await Promise.all([
+        fetch('/api/items'),
+        fetch('/api/categories'),
+      ]);
+
+      if (resProd.ok && resCat.ok) {
+        const prodData = await resProd.json();
+        const catData = await resCat.json();
+        setProducts(prodData);
+        setCategories(catData);
+      } else {
+        throw new Error('API request failed');
+      }
+    } catch (err) {
+      console.warn('Backend API fetch error, using local fallback:', err);
+      // Fallback to initial static seed if server isn't ready
+      setProducts(FURNITURE_ITEMS.map((item) => ({ ...item, isActive: true })));
+      setCategories(CATEGORIES);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDataFromApi();
+  }, []);
+
+  const handleStoreToDatabase = async () => {
+    setIsSyncingToDb(true);
+    try {
+      const res = await fetch('/api/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ products, categories }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const timestamp = data.timestamp || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        setLastSyncedAt(timestamp);
+        try {
+          localStorage.setItem('peacefurniture_last_sync', timestamp);
+        } catch {
+          // ignore
+        }
+        showToast(`Successfully stored ${products.length} products & ${categories.length - 1} categories to Database!`);
+      } else {
+        throw new Error('Sync failed');
       }
     } catch {
-      // fallback
+      showToast('Error syncing to database server.');
+    } finally {
+      setIsSyncingToDb(false);
     }
-    // Initialize default products with isActive: true
-    return FURNITURE_ITEMS.map((item) => ({ ...item, isActive: true }));
-  });
-
-  // Save products to localStorage on change
-  useEffect(() => {
-    try {
-      localStorage.setItem('peacefurniture_products', JSON.stringify(products));
-    } catch {
-      // ignore
-    }
-  }, [products]);
+  };
 
   // Toast Notification state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -81,45 +122,30 @@ export default function App() {
   const [selectedProduct, setSelectedProduct] = useState<FurnitureItem | null>(null);
   const [editingAdminProduct, setEditingAdminProduct] = useState<FurnitureItem | null>(null);
   const [isAdminProductModalOpen, setIsAdminProductModalOpen] = useState(false);
+
+  const [editingAdminCategory, setEditingAdminCategory] = useState<Category | null>(null);
+  const [isAdminCategoryModalOpen, setIsAdminCategoryModalOpen] = useState(false);
+
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [isImageSearchModalOpen, setIsImageSearchModalOpen] = useState(false);
-  const [isWishlistOpen, setIsWishlistOpen] = useState(false);
   const [isNavOpen, setIsNavOpen] = useState(false);
-
-  // Wishlist state
-  const [wishlistIds, setWishlistIds] = useState<Set<string>>(
-    () => new Set(['sofa-modern-3-seater', 'dining-6-seater-wood'])
-  );
 
   // Scroll to top when view changes
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [currentView]);
 
-  const toggleWishlist = (product: FurnitureItem) => {
-    setWishlistIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(product.id)) {
-        next.delete(product.id);
-      } else {
-        next.add(product.id);
-      }
-      return next;
-    });
-  };
-
-  const clearAllWishlist = () => {
-    setWishlistIds(new Set());
-  };
-
-  const wishlistItems = useMemo(() => {
-    return products.filter((item) => wishlistIds.has(item.id) && item.isActive !== false);
-  }, [products, wishlistIds]);
+  // Active Categories for Public Store Front
+  const activeCategories = useMemo(() => {
+    return categories.filter((c) => c.isActive !== false);
+  }, [categories]);
 
   // PUBLIC VISIBLE PRODUCTS FOR PAGE 1 (CATALOGUE)
-  // Filters out inactive or hidden products
   const catalogueProducts = useMemo(() => {
-    let items = products.filter((item) => item.isActive !== false);
+    const activeCategoryIds = new Set(categories.filter((c) => c.isActive !== false).map((c) => c.id));
+    let items = products.filter(
+      (item) => item.isActive !== false && activeCategoryIds.has(item.category)
+    );
 
     if (selectedCategory !== 'all') {
       items = items.filter((item) => item.category === selectedCategory);
@@ -138,12 +164,14 @@ export default function App() {
     }
 
     return items;
-  }, [products, selectedCategory, filters.sortBy]);
+  }, [products, categories, selectedCategory, filters.sortBy]);
 
   // PUBLIC VISIBLE PRODUCTS FOR PAGE 2 (SEARCH)
-  // Filters out inactive or hidden products
   const searchResults = useMemo(() => {
-    let items = products.filter((item) => item.isActive !== false);
+    const activeCategoryIds = new Set(categories.filter((c) => c.isActive !== false).map((c) => c.id));
+    let items = products.filter(
+      (item) => item.isActive !== false && activeCategoryIds.has(item.category)
+    );
 
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim();
@@ -152,7 +180,7 @@ export default function App() {
         const matchesCat = item.category.toLowerCase().includes(query);
         const matchesDesc = item.description.toLowerCase().includes(query);
         const matchesMat = item.material.toLowerCase().includes(query);
-        const matchesTags = item.tags.some((tag) => tag.toLowerCase().includes(query));
+        const matchesTags = item.tags ? item.tags.some((tag) => tag.toLowerCase().includes(query)) : false;
         return matchesName || matchesCat || matchesDesc || matchesMat || matchesTags;
       });
     }
@@ -178,74 +206,222 @@ export default function App() {
     }
 
     return items;
-  }, [products, searchQuery, filters]);
+  }, [products, categories, searchQuery, filters]);
 
-  // ============ ADMIN ACTIONS ============
-  const handleAdminLogin = (user: AdminUser) => {
-    setAdminUser(user);
-    try {
-      localStorage.setItem('peacefurniture_admin_session', JSON.stringify(user));
-    } catch {
-      // ignore
-    }
-    showToast(`Signed in as ${user.name}`);
-  };
+  // ============ ADMIN ACTIONS (BACKEND CONNECTED) ============
 
-  const handleAdminLogout = () => {
-    setAdminUser(null);
-    try {
-      localStorage.removeItem('peacefurniture_admin_session');
-      localStorage.removeItem('homecraft_admin_session');
-    } catch {
-      // ignore
-    }
-    showToast('Signed out of Admin Portal');
-    setCurrentView('home');
-  };
-
-  const handleSaveProduct = (product: FurnitureItem) => {
-    setProducts((prev) => {
-      const existingIdx = prev.findIndex((p) => p.id === product.id);
-      if (existingIdx >= 0) {
-        // Update existing product
-        const next = [...prev];
-        next[existingIdx] = product;
-        return next;
-      } else {
-        // Add new product at top
-        return [product, ...prev];
-      }
-    });
-
+  // Add or Edit Product
+  const handleSaveProduct = async (product: FurnitureItem) => {
     const isEdit = Boolean(editingAdminProduct);
-    showToast(isEdit ? `Updated "${product.name}"` : `Added "${product.name}" to catalogue`);
+    try {
+      const url = isEdit ? `/api/items/${product.id}` : '/api/items';
+      const method = isEdit ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(product),
+      });
+
+      if (res.ok) {
+        const savedItem = await res.json();
+        setProducts((prev) => {
+          const idx = prev.findIndex((p) => p.id === savedItem.id);
+          if (idx >= 0) {
+            const next = [...prev];
+            next[idx] = savedItem;
+            return next;
+          }
+          return [savedItem, ...prev];
+        });
+        showToast(isEdit ? `Updated "${savedItem.name}"` : `Added "${savedItem.name}" to catalogue`);
+      } else {
+        throw new Error('Failed to save product on server');
+      }
+    } catch {
+      // Local fallback
+      setProducts((prev) => {
+        const idx = prev.findIndex((p) => p.id === product.id);
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = product;
+          return next;
+        }
+        return [product, ...prev];
+      });
+      showToast(isEdit ? `Updated "${product.name}"` : `Added "${product.name}" to catalogue`);
+    }
+
     setEditingAdminProduct(null);
   };
 
-  const handleDeleteProduct = (productId: string) => {
+  // Delete Product
+  const handleDeleteProduct = async (productId: string) => {
     const deletedItem = products.find((p) => p.id === productId);
-    setProducts((prev) => prev.filter((p) => p.id !== productId));
-    showToast(`Deleted "${deletedItem?.name || 'Product'}"`);
+    try {
+      const res = await fetch(`/api/items/${productId}`, { method: 'DELETE' });
+      if (res.ok) {
+        setProducts((prev) => prev.filter((p) => p.id !== productId));
+        showToast(`Deleted "${deletedItem?.name || 'Product'}"`);
+      } else {
+        throw new Error('Failed to delete product from server');
+      }
+    } catch {
+      setProducts((prev) => prev.filter((p) => p.id !== productId));
+      showToast(`Deleted "${deletedItem?.name || 'Product'}"`);
+    }
   };
 
-  const handleToggleActiveProduct = (productId: string) => {
-    setProducts((prev) =>
-      prev.map((p) => {
-        if (p.id === productId) {
-          const newStatus = p.isActive === false ? true : false;
-          showToast(
-            newStatus
-              ? `"${p.name}" is now Active in catalogue`
-              : `"${p.name}" is now Hidden / Deactivated`
-          );
-          return { ...p, isActive: newStatus };
+  // Toggle Product Active/Inactive
+  const handleToggleActiveProduct = async (productId: string) => {
+    const target = products.find((p) => p.id === productId);
+    if (!target) return;
+
+    const newStatus = target.isActive === false ? true : false;
+    const updatedProduct = { ...target, isActive: newStatus };
+
+    try {
+      const res = await fetch(`/api/items/${productId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: newStatus }),
+      });
+
+      if (res.ok) {
+        setProducts((prev) => prev.map((p) => (p.id === productId ? updatedProduct : p)));
+        showToast(
+          newStatus
+            ? `"${target.name}" is now Active in catalogue`
+            : `"${target.name}" is now Hidden / Deactivated`
+        );
+      } else {
+        throw new Error('Failed to toggle status on server');
+      }
+    } catch {
+      setProducts((prev) => prev.map((p) => (p.id === productId ? updatedProduct : p)));
+      showToast(
+        newStatus
+          ? `"${target.name}" is now Active in catalogue`
+          : `"${target.name}" is now Hidden / Deactivated`
+      );
+    }
+  };
+
+  // Category Handlers
+  const handleOpenAddCategory = () => {
+    setEditingAdminCategory(null);
+    setIsAdminCategoryModalOpen(true);
+  };
+
+  const handleOpenEditCategory = (category: Category) => {
+    setEditingAdminCategory(category);
+    setIsAdminCategoryModalOpen(true);
+  };
+
+  const handleSaveCategory = async (category: Category) => {
+    const isEdit = Boolean(editingAdminCategory);
+    try {
+      const url = isEdit ? `/api/categories/${category.id}` : '/api/categories';
+      const method = isEdit ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(category),
+      });
+
+      if (res.ok) {
+        const savedCategory = await res.json();
+        setCategories((prev) => {
+          const idx = prev.findIndex((c) => c.id === savedCategory.id);
+          if (idx >= 0) {
+            const next = [...prev];
+            next[idx] = savedCategory;
+            return next;
+          }
+          return [...prev, savedCategory];
+        });
+        showToast(isEdit ? `Updated category "${savedCategory.name}"` : `Added category "${savedCategory.name}"`);
+      } else {
+        throw new Error('Failed to save category on server');
+      }
+    } catch {
+      setCategories((prev) => {
+        const idx = prev.findIndex((c) => c.id === category.id);
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = category;
+          return next;
         }
-        return p;
-      })
-    );
+        return [...prev, category];
+      });
+      showToast(isEdit ? `Updated category "${category.name}"` : `Added category "${category.name}"`);
+    }
+
+    setEditingAdminCategory(null);
   };
 
-  // Open modals
+  const handleDeleteCategory = async (categoryId: string) => {
+    if (categoryId === 'all') {
+      showToast('Cannot delete the "All" category');
+      return;
+    }
+    const catToDelete = categories.find((c) => c.id === categoryId);
+
+    try {
+      const res = await fetch(`/api/categories/${categoryId}`, { method: 'DELETE' });
+      if (res.ok) {
+        const data = await res.json();
+        setCategories((prev) => prev.filter((c) => c.id !== categoryId));
+        if (data.products) {
+          setProducts(data.products);
+        }
+        showToast(`Deleted category "${catToDelete?.name || categoryId}"`);
+      } else {
+        throw new Error('Failed to delete category on server');
+      }
+    } catch {
+      setCategories((prev) => prev.filter((c) => c.id !== categoryId));
+      setProducts((prev) => prev.map((p) => (p.category === categoryId ? { ...p, category: 'decor' } : p)));
+      showToast(`Deleted category "${catToDelete?.name || categoryId}"`);
+    }
+  };
+
+  const handleToggleActiveCategory = async (categoryId: string) => {
+    const target = categories.find((c) => c.id === categoryId);
+    if (!target) return;
+
+    const newStatus = target.isActive === false ? true : false;
+    const updatedCategory = { ...target, isActive: newStatus };
+
+    try {
+      const res = await fetch(`/api/categories/${categoryId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: newStatus }),
+      });
+
+      if (res.ok) {
+        setCategories((prev) => prev.map((c) => (c.id === categoryId ? updatedCategory : c)));
+        showToast(
+          newStatus
+            ? `Category "${target.name}" is now Active in catalogue`
+            : `Category "${target.name}" is now Hidden / Deactivated`
+        );
+      } else {
+        throw new Error('Failed to toggle category status on server');
+      }
+    } catch {
+      setCategories((prev) => prev.map((c) => (c.id === categoryId ? updatedCategory : c)));
+      showToast(
+        newStatus
+          ? `Category "${target.name}" is now Active in catalogue`
+          : `Category "${target.name}" is now Hidden / Deactivated`
+      );
+    }
+  };
+
+  // Open product modals
   const handleOpenAddProduct = () => {
     setEditingAdminProduct(null);
     setIsAdminProductModalOpen(true);
@@ -295,40 +471,34 @@ export default function App() {
         </div>
       )}
 
-      {/* Conditional Rendering: If in Admin View, show admin header / portal */}
+      {/* Conditional Rendering: Admin View vs Store View */}
       {currentView === 'admin' ? (
-        adminUser ? (
-          <AdminView
-            adminUser={adminUser}
-            products={products}
-            onAddProduct={handleOpenAddProduct}
-            onEditProduct={handleOpenEditProduct}
-            onDeleteProduct={handleDeleteProduct}
-            onToggleActive={handleToggleActiveProduct}
-            onLogout={handleAdminLogout}
-            onGoToStore={() => setCurrentView('home')}
-          />
-        ) : (
-          <AdminAuthView
-            onLoginSuccess={handleAdminLogin}
-            onBackToStore={() => setCurrentView('home')}
-          />
-        )
+        <AdminView
+          products={products}
+          categories={categories}
+          onAddProduct={handleOpenAddProduct}
+          onEditProduct={handleOpenEditProduct}
+          onDeleteProduct={handleDeleteProduct}
+          onToggleActive={handleToggleActiveProduct}
+          onAddCategory={handleOpenAddCategory}
+          onEditCategory={handleOpenEditCategory}
+          onDeleteCategory={handleDeleteCategory}
+          onToggleActiveCategory={handleToggleActiveCategory}
+          onStoreToDatabase={handleStoreToDatabase}
+          isSyncingToDb={isSyncingToDb}
+          lastSyncedAt={lastSyncedAt}
+          onGoToStore={() => setCurrentView('home')}
+        />
       ) : (
-        /* Public Store Views: Header, Page 1 / Page 2, Footer */
         <>
           <Header
             currentView={currentView}
             onNavigate={(v) => setCurrentView(v)}
             onOpenMenu={() => setIsNavOpen(true)}
-            onOpenWishlist={() => setIsWishlistOpen(true)}
-            wishlistCount={wishlistIds.size}
-            adminUser={adminUser}
           />
 
           <main className="flex-1 pb-16 sm:pb-0">
             {currentView === 'home' ? (
-              /* PAGE 1: Furniture Catalogue (Home Page) */
               <HomeView
                 searchQuery={searchQuery}
                 onSearchChange={(q) => setSearchQuery(q)}
@@ -337,15 +507,13 @@ export default function App() {
                 onFocusSearch={() => handleOpenSearchPage()}
                 selectedCategory={selectedCategory}
                 onSelectCategory={(cat) => setSelectedCategory(cat)}
+                categories={activeCategories}
                 products={catalogueProducts}
-                wishlistIds={wishlistIds}
-                onToggleWishlist={toggleWishlist}
                 onViewDetails={(item) => setSelectedProduct(item)}
                 filters={filters}
                 onSortChange={(s) => setFilters({ ...filters, sortBy: s })}
               />
             ) : (
-              /* PAGE 2: Search Furniture & AI Image Search */
               <SearchView
                 searchQuery={searchQuery}
                 onSearchChange={(q) => setSearchQuery(q)}
@@ -355,8 +523,6 @@ export default function App() {
                 onOpenFilter={() => setIsFilterModalOpen(true)}
                 results={searchResults}
                 totalResultsCount={searchResults.length}
-                wishlistIds={wishlistIds}
-                onToggleWishlist={toggleWishlist}
                 onViewDetails={(item) => setSelectedProduct(item)}
                 activeImageSearch={activeImageSearch}
                 onClearImageSearch={handleClearImageSearch}
@@ -374,7 +540,7 @@ export default function App() {
         </>
       )}
 
-      {/* Persistent Mobile Bottom Navigation Bar (Catalogue <-> Search AI <-> Wishlist <-> Admin) */}
+      {/* Persistent Mobile Bottom Navigation Bar */}
       <nav aria-label="Mobile Bottom Navigation" className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-gray-200/80 px-4 py-2 flex items-center justify-around shadow-lg">
         <button
           onClick={() => setCurrentView('home')}
@@ -397,19 +563,6 @@ export default function App() {
         </button>
 
         <button
-          onClick={() => setIsWishlistOpen(true)}
-          className="relative flex flex-col items-center gap-1 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
-        >
-          <Heart className="w-5 h-5" />
-          <span className="text-[10px] font-bold">Wishlist</span>
-          {wishlistIds.size > 0 && (
-            <span className="absolute -top-1 right-2 bg-[#E11D2A] text-white text-[9px] font-bold w-3.5 h-3.5 rounded-full flex items-center justify-center">
-              {wishlistIds.size}
-            </span>
-          )}
-        </button>
-
-        <button
           onClick={() => setCurrentView('admin')}
           className={`flex flex-col items-center gap-1 transition-colors cursor-pointer ${
             currentView === 'admin' ? 'text-[#E11D2A]' : 'text-gray-400 hover:text-emerald-500'
@@ -429,6 +582,18 @@ export default function App() {
         }}
         onSave={handleSaveProduct}
         initialProduct={editingAdminProduct}
+        categories={categories}
+      />
+
+      {/* Admin Add/Edit Category Modal */}
+      <AdminCategoryModal
+        isOpen={isAdminCategoryModalOpen}
+        onClose={() => {
+          setIsAdminCategoryModalOpen(false);
+          setEditingAdminCategory(null);
+        }}
+        onSave={handleSaveCategory}
+        initialCategory={editingAdminCategory}
       />
 
       {/* Customer Product Details Modal */}
@@ -436,14 +601,13 @@ export default function App() {
         product={selectedProduct}
         isOpen={Boolean(selectedProduct)}
         onClose={() => setSelectedProduct(null)}
-        isWishlisted={selectedProduct ? wishlistIds.has(selectedProduct.id) : false}
-        onToggleWishlist={toggleWishlist}
       />
 
       {/* Filter Modal */}
       <FilterModal
         isOpen={isFilterModalOpen}
         onClose={() => setIsFilterModalOpen(false)}
+        categories={activeCategories}
         filters={filters}
         onUpdateFilters={(newFilters) => setFilters(newFilters)}
         onResetFilters={handleResetFilters}
@@ -457,16 +621,6 @@ export default function App() {
         onApplyImageSearch={handleApplyImageSearch}
       />
 
-      {/* Wishlist Drawer */}
-      <WishlistDrawer
-        isOpen={isWishlistOpen}
-        onClose={() => setIsWishlistOpen(false)}
-        wishlistItems={wishlistItems}
-        onRemove={toggleWishlist}
-        onViewDetails={(item) => setSelectedProduct(item)}
-        onClearAll={clearAllWishlist}
-      />
-
       {/* Navigation Drawer */}
       <NavDrawer
         isOpen={isNavOpen}
@@ -476,8 +630,7 @@ export default function App() {
           setSelectedCategory(cat);
           setCurrentView('home');
         }}
-        onOpenWishlist={() => setIsWishlistOpen(true)}
-        wishlistCount={wishlistIds.size}
+        categories={activeCategories}
       />
     </div>
   );

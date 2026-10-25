@@ -1,7 +1,7 @@
 import React from 'react';
-import { X, Home, Search, Heart, MapPin, Phone, Layers, Sparkles } from 'lucide-react';
+import { X, Home, Search, MapPin, Phone, Layers, Sparkles } from 'lucide-react';
 import { HomeCraftLogo } from './HomeCraftLogo';
-import { CategoryId } from '../types';
+import { Category, CategoryId } from '../types';
 import { CATEGORIES } from '../data/furnitureData';
 
 interface NavDrawerProps {
@@ -9,8 +9,7 @@ interface NavDrawerProps {
   onClose: () => void;
   onNavigate: (view: 'home' | 'search' | 'admin') => void;
   onSelectCategory: (cat: CategoryId) => void;
-  onOpenWishlist: () => void;
-  wishlistCount: number;
+  categories?: Category[];
 }
 
 export const NavDrawer: React.FC<NavDrawerProps> = ({
@@ -18,8 +17,7 @@ export const NavDrawer: React.FC<NavDrawerProps> = ({
   onClose,
   onNavigate,
   onSelectCategory,
-  onOpenWishlist,
-  wishlistCount,
+  categories,
 }) => {
   if (!isOpen) return null;
 
@@ -68,24 +66,6 @@ export const NavDrawer: React.FC<NavDrawerProps> = ({
 
             <button
               onClick={() => {
-                onOpenWishlist();
-                onClose();
-              }}
-              className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-semibold hover:bg-white/10 transition-colors text-left text-gray-200 hover:text-white cursor-pointer"
-            >
-              <div className="flex items-center gap-3">
-                <Heart className="w-4 h-4 text-[#E11D2A]" />
-                <span>My Wishlist</span>
-              </div>
-              {wishlistCount > 0 && (
-                <span className="bg-[#E11D2A] text-white text-xs px-2 py-0.5 rounded-full font-bold">
-                  {wishlistCount}
-                </span>
-              )}
-            </button>
-
-            <button
-              onClick={() => {
                 onNavigate('admin');
                 onClose();
               }}
@@ -103,7 +83,10 @@ export const NavDrawer: React.FC<NavDrawerProps> = ({
               <span>Browse Collections</span>
             </div>
             <div className="grid grid-cols-2 gap-1 px-1">
-              {CATEGORIES.slice(1).map((cat) => (
+              {(categories
+                ? categories.filter((c) => c.id !== 'all' && c.isActive !== false)
+                : CATEGORIES.slice(1)
+              ).map((cat) => (
                 <button
                   key={cat.id}
                   onClick={() => {

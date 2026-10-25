@@ -1,23 +1,16 @@
-import { Search, Menu, ArrowLeft, Heart, Sparkles, ShieldCheck } from 'lucide-react';
+import { Search, Menu, ArrowLeft, Sparkles, ShieldCheck } from 'lucide-react';
 import { HomeCraftLogo } from './HomeCraftLogo';
-import { AdminUser } from '../types';
 
 interface HeaderProps {
   currentView: 'home' | 'search' | 'admin';
   onNavigate: (view: 'home' | 'search' | 'admin') => void;
   onOpenMenu: () => void;
-  onOpenWishlist: () => void;
-  wishlistCount: number;
-  adminUser?: AdminUser | null;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   currentView,
   onNavigate,
   onOpenMenu,
-  onOpenWishlist,
-  wishlistCount,
-  adminUser,
 }) => {
   return (
     <header className="sticky top-0 z-40 bg-[#0F1115] border-b border-gray-800/80 px-4 py-3 sm:px-6">
@@ -49,7 +42,7 @@ export const Header: React.FC<HeaderProps> = ({
             onClick={() => onNavigate('home')}
             className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
               currentView === 'home'
-                ? 'bg-[#E11D2A] text-white shadow-sm'
+                ? 'bg-[#E11D2A]' + ' text-white shadow-sm'
                 : 'text-gray-300 hover:text-white hover:bg-white/5'
             }`}
           >
@@ -59,7 +52,7 @@ export const Header: React.FC<HeaderProps> = ({
             onClick={() => onNavigate('search')}
             className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               currentView === 'search'
-                ? 'bg-[#E11D2A] text-white shadow-sm'
+                ? 'bg-[#E11D2A]' + ' text-white shadow-sm'
                 : 'text-gray-300 hover:text-white hover:bg-white/5'
             }`}
           >
@@ -70,12 +63,12 @@ export const Header: React.FC<HeaderProps> = ({
             onClick={() => onNavigate('admin')}
             className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               currentView === 'admin'
-                ? 'bg-[#E11D2A] text-white shadow-sm'
+                ? 'bg-[#E11D2A]' + ' text-white shadow-sm'
                 : 'text-gray-300 hover:text-white hover:bg-white/5'
             }`}
           >
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-            <span>{adminUser ? 'Admin Portal' : 'Admin Login'}</span>
+            <span>Admin Portal</span>
           </button>
         </nav>
 
@@ -100,21 +93,6 @@ export const Header: React.FC<HeaderProps> = ({
             title="Admin Portal"
           >
             <ShieldCheck className="w-5 h-5 text-emerald-400" />
-          </button>
-
-          {/* Wishlist toggle */}
-          <button
-            onClick={onOpenWishlist}
-            className="relative text-white/90 hover:text-white p-2 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
-            aria-label="Favorites"
-            title="Saved items"
-          >
-            <Heart className="w-5 h-5 sm:w-5.5 sm:h-5.5 text-white/90" />
-            {wishlistCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 bg-[#E11D2A] text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-sm">
-                {wishlistCount}
-              </span>
-            )}
           </button>
 
           {/* Menu button */}

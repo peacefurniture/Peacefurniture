@@ -1,21 +1,17 @@
 import React, { useState } from 'react';
-import { X, Heart, Star, ShieldCheck, Ruler, Sparkles, Check, Share2 } from 'lucide-react';
+import { X, Star, ShieldCheck, Ruler, Sparkles, Check, Share2 } from 'lucide-react';
 import { FurnitureItem } from '../types';
 
 interface ProductDetailsModalProps {
   product: FurnitureItem | null;
   isOpen: boolean;
   onClose: () => void;
-  isWishlisted: boolean;
-  onToggleWishlist: (item: FurnitureItem) => void;
 }
 
 export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
   product,
   isOpen,
   onClose,
-  isWishlisted,
-  onToggleWishlist,
 }) => {
   const [selectedImage, setSelectedImage] = useState<string>('');
   const [selectedColor, setSelectedColor] = useState<string>('');
@@ -50,17 +46,6 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
               title="Share item"
             >
               {copiedLink ? <Check className="w-4 h-4 text-green-600" /> : <Share2 className="w-4 h-4" />}
-            </button>
-            <button
-              onClick={() => onToggleWishlist(product)}
-              className="p-2 text-gray-500 hover:text-red-600 rounded-full hover:bg-gray-200/60 transition-colors cursor-pointer"
-              title="Add to wishlist"
-            >
-              <Heart
-                className={`w-5 h-5 ${
-                  isWishlisted ? 'fill-[#E11D2A] text-[#E11D2A]' : 'text-gray-500'
-                }`}
-              />
             </button>
             <button
               onClick={onClose}
@@ -224,18 +209,6 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
 
         {/* Modal Footer / Call to actions */}
         <div className="p-4 sm:p-5 border-t border-gray-100 bg-white flex items-center gap-3">
-          <button
-            onClick={() => onToggleWishlist(product)}
-            className={`px-4 py-3 rounded-xl border text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer ${
-              isWishlisted
-                ? 'border-[#E11D2A] text-[#E11D2A] bg-red-50/60'
-                : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            <Heart className={`w-4 h-4 ${isWishlisted ? 'fill-[#E11D2A]' : ''}`} />
-            <span>{isWishlisted ? 'Saved' : 'Save'}</span>
-          </button>
-
           <button
             onClick={() => {
               alert(`Enquiry submitted for "${product.name}". Our Peace Furniture design advisor will contact you within 2 hours!`);

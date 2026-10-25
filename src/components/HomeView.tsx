@@ -1,10 +1,9 @@
 import React from 'react';
-import { ChevronDown, Sparkles } from 'lucide-react';
-import { CategoryId, FilterState, FurnitureItem } from '../types';
+import { ChevronDown } from 'lucide-react';
+import { Category, CategoryId, FilterState, FurnitureItem } from '../types';
 import { Hero } from './Hero';
 import { CategoryGrid } from './CategoryGrid';
 import { ProductCard } from './ProductCard';
-import { CATEGORIES } from '../data/furnitureData';
 
 interface HomeViewProps {
   searchQuery: string;
@@ -14,9 +13,8 @@ interface HomeViewProps {
   onFocusSearch: () => void;
   selectedCategory: CategoryId;
   onSelectCategory: (cat: CategoryId) => void;
+  categories: Category[];
   products: FurnitureItem[];
-  wishlistIds: Set<string>;
-  onToggleWishlist: (item: FurnitureItem) => void;
   onViewDetails: (item: FurnitureItem) => void;
   filters: FilterState;
   onSortChange: (sortBy: FilterState['sortBy']) => void;
@@ -30,9 +28,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onFocusSearch,
   selectedCategory,
   onSelectCategory,
+  categories,
   products,
-  wishlistIds,
-  onToggleWishlist,
   onViewDetails,
   filters,
   onSortChange,
@@ -40,7 +37,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const currentCategoryName =
     selectedCategory === 'all'
       ? 'All Furniture'
-      : CATEGORIES.find((c) => c.id === selectedCategory)?.name || 'All Furniture';
+      : categories.find((c) => c.id === selectedCategory)?.name || 'All Furniture';
 
   return (
     <div className="pb-16 bg-[#FAFAFA] min-h-screen">
@@ -53,9 +50,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
         onFocusSearch={onFocusSearch}
       />
 
-      {/* Categories Grid (12 categories) */}
+      {/* Categories Grid */}
       <div className="mt-4 sm:mt-6">
         <CategoryGrid
+          categories={categories}
           selectedCategory={selectedCategory}
           onSelectCategory={onSelectCategory}
         />
@@ -96,34 +94,28 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </div>
         </div>
 
-        {/* Product Cards Grid - 2 cols on mobile (exact match with mockup) */}
+        {/* Product Cards Grid - 2 cols on mobile */}
         {products.length > 0 ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5">
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
             {products.map((item) => (
               <ProductCard
                 key={item.id}
                 product={item}
-                isWishlisted={wishlistIds.has(item.id)}
-                onToggleWishlist={onToggleWishlist}
                 onViewDetails={onViewDetails}
               />
             ))}
           </div>
         ) : (
-          <div className="bg-white rounded-2xl p-10 text-center border border-gray-200 max-w-md mx-auto my-8 shadow-xs">
-            <div className="w-12 h-12 rounded-full bg-red-50 text-[#E11D2A] flex items-center justify-center mx-auto mb-3">
-              <Sparkles className="w-6 h-6" />
+          <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center my-8 shadow-xs">
+            <div className="w-12 h-12 bg-red-50 text-[#E11D2A] rounded-2xl flex items-center justify-center mx-auto mb-3">
+              <span className="text-xl font-bold">∅</span>
             </div>
-            <h3 className="font-bold text-gray-900 text-base mb-1">No furniture found</h3>
-            <p className="text-xs text-gray-500 mb-4">
-              We couldn't find any products in this category right now.
+            <h3 className="text-base font-bold text-gray-900 mb-1">
+              No products found in this category
+            </h3>
+            <p className="text-xs text-gray-500">
+              Try selecting another category or check back soon for new arrivals!
             </p>
-            <button
-              onClick={() => onSelectCategory('all')}
-              className="bg-[#E11D2A] text-white px-4 py-2 rounded-xl text-xs font-semibold hover:bg-[#C51322] transition-colors cursor-pointer"
-            >
-              Show All Furniture
-            </button>
           </div>
         )}
       </div>

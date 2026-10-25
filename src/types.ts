@@ -10,13 +10,15 @@ export type CategoryId =
   | 'storage'
   | 'outdoor'
   | 'kids'
-  | 'decor';
+  | 'decor'
+  | string;
 
 export interface Category {
   id: CategoryId;
   name: string;
   image: string;
   count: number;
+  isActive?: boolean; // false means hidden/deactivated from public catalogue
 }
 
 export interface FurnitureItem {

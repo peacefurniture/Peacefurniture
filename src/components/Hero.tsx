@@ -19,7 +19,7 @@ export const Hero: React.FC<HeroProps> = ({
   return (
     <div className="relative">
       {/* Dark Hero Banner */}
-      <div className="relative bg-[#0F1115] overflow-hidden">
+      <div className="relative bg-[#0F1115] overflow-hidden rounded-b-3xl sm:rounded-b-[2.5rem] shadow-md">
         {/* Background photo & dark cinematic gradient */}
         <div className="absolute inset-0 z-0">
           <img

@@ -47,16 +47,40 @@ export const ImageSearchModal: React.FC<ImageSearchModalProps> = ({
     },
   ];
 
-  const handleSelectImage = (imgUrl: string, detected: string, query: string) => {
-    setPreviewImage(imgUrl);
-    setDetectedCategory(detected);
+  const processImageWithGemini = async (imageDataOrUrl: string, fallbackQuery: string) => {
+    setPreviewImage(imageDataOrUrl);
     setAnalyzing(true);
 
-    setTimeout(() => {
-      setAnalyzing(false);
-      onApplyImageSearch(imgUrl, query);
-      onClose();
-    }, 900);
+    try {
+      const res = await fetch('/api/analyze-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: imageDataOrUrl }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.analysis) {
+          const query = data.analysis.suggestedSearchQuery || data.analysis.category || fallbackQuery;
+          setDetectedCategory(data.analysis.itemType || 'Furniture Identified');
+          setAnalyzing(false);
+          onApplyImageSearch(imageDataOrUrl, query);
+          onClose();
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('Gemini image search fallback:', err);
+    }
+
+    // Fallback if network or API key issue
+    setAnalyzing(false);
+    onApplyImageSearch(imageDataOrUrl, fallbackQuery);
+    onClose();
+  };
+
+  const handleSelectImage = (imgUrl: string, detected: string, query: string) => {
+    processImageWithGemini(imgUrl, query);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -65,15 +89,7 @@ export const ImageSearchModal: React.FC<ImageSearchModalProps> = ({
       const reader = new FileReader();
       reader.onload = () => {
         const result = reader.result as string;
-        setPreviewImage(result);
-        setDetectedCategory('Custom Photo Upload');
-        setAnalyzing(true);
-        setTimeout(() => {
-          setAnalyzing(false);
-          // Default to dining or query based
-          onApplyImageSearch(result, 'wooden dining table');
-          onClose();
-        }, 1100);
+        processImageWithGemini(result, 'furniture');
       };
       reader.readAsDataURL(file);
     }
@@ -125,13 +141,7 @@ export const ImageSearchModal: React.FC<ImageSearchModalProps> = ({
                 const reader = new FileReader();
                 reader.onload = () => {
                   const result = reader.result as string;
-                  setPreviewImage(result);
-                  setAnalyzing(true);
-                  setTimeout(() => {
-                    setAnalyzing(false);
-                    onApplyImageSearch(result, 'dining table');
-                    onClose();
-                  }, 1000);
+                  processImageWithGemini(result, 'furniture');
                 };
                 reader.readAsDataURL(file);
               }
