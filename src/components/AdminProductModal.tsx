@@ -518,15 +518,17 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
               </label>
               <input
                 type="text"
-                value={formData.dimensions?.width || ''}
+                value={
+                  typeof formData.dimensions === 'object' && formData.dimensions !== null
+                    ? formData.dimensions.width
+                    : typeof formData.dimensions === 'string'
+                    ? formData.dimensions
+                    : ''
+                }
                 onChange={(e) =>
                   setFormData({
                     ...formData,
-                    dimensions: {
-                      width: e.target.value,
-                      depth: formData.dimensions?.depth || '36 inches',
-                      height: formData.dimensions?.height || '30 inches',
-                    },
+                    dimensions: e.target.value,
                   })
                 }
                 placeholder="72W × 36D × 30H in"

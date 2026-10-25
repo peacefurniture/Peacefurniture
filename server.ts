@@ -386,7 +386,7 @@ async function startServer() {
     res.json(item);
   });
 
-  app.post('/api/items', (req, res) => {
+  app.post('/api/items', async (req, res) => {
     const newItem = req.body;
     if (!newItem.name) {
       return res.status(400).json({ error: 'Product name is required' });
@@ -400,7 +400,6 @@ async function startServer() {
     }
 
     const products = readProducts();
-    // Check if ID already exists
     const existingIndex = products.findIndex((p) => p.id === newItem.id);
     if (existingIndex >= 0) {
       products[existingIndex] = newItem;
@@ -409,10 +408,24 @@ async function startServer() {
     }
 
     writeProducts(products);
-    res.status(201).json(newItem);
+
+    // Sync with Supabase if configured
+    let supabaseError = null;
+    if (isServerSupabaseConfigured()) {
+      const supabase = getSupabaseServerClient();
+      if (supabase) {
+        const { error } = await supabase.from('products').upsert(newItem, { onConflict: 'id' });
+        if (error) {
+          console.error('Supabase product save error:', error);
+          supabaseError = error.message;
+        }
+      }
+    }
+
+    res.status(201).json({ ...newItem, supabaseError });
   });
 
-  app.put('/api/items/:id', (req, res) => {
+  app.put('/api/items/:id', async (req, res) => {
     const id = req.params.id;
     const updatedData = req.body;
     const products = readProducts();
@@ -424,10 +437,24 @@ async function startServer() {
 
     products[index] = { ...products[index], ...updatedData, id };
     writeProducts(products);
-    res.json(products[index]);
+
+    // Sync with Supabase if configured
+    let supabaseError = null;
+    if (isServerSupabaseConfigured()) {
+      const supabase = getSupabaseServerClient();
+      if (supabase) {
+        const { error } = await supabase.from('products').upsert(products[index], { onConflict: 'id' });
+        if (error) {
+          console.error('Supabase product update error:', error);
+          supabaseError = error.message;
+        }
+      }
+    }
+
+    res.json({ ...products[index], supabaseError });
   });
 
-  app.delete('/api/items/:id', (req, res) => {
+  app.delete('/api/items/:id', async (req, res) => {
     const id = req.params.id;
     let products = readProducts();
     const existing = products.find((p) => p.id === id);
@@ -438,6 +465,18 @@ async function startServer() {
 
     products = products.filter((p) => p.id !== id);
     writeProducts(products);
+
+    // Sync deletion with Supabase if configured
+    if (isServerSupabaseConfigured()) {
+      const supabase = getSupabaseServerClient();
+      if (supabase) {
+        const { error } = await supabase.from('products').delete().eq('id', id);
+        if (error) {
+          console.error('Supabase product delete error:', error);
+        }
+      }
+    }
+
     res.json({ message: 'Product deleted successfully', id });
   });
 
@@ -447,7 +486,7 @@ async function startServer() {
     res.json(categories);
   });
 
-  app.post('/api/categories', (req, res) => {
+  app.post('/api/categories', async (req, res) => {
     const newCategory = req.body;
     if (!newCategory.name) {
       return res.status(400).json({ error: 'Category name is required' });
@@ -469,10 +508,24 @@ async function startServer() {
     }
 
     writeCategories(categories);
-    res.status(201).json(newCategory);
+
+    // Sync with Supabase if configured
+    let supabaseError = null;
+    if (isServerSupabaseConfigured()) {
+      const supabase = getSupabaseServerClient();
+      if (supabase) {
+        const { error } = await supabase.from('categories').upsert(newCategory, { onConflict: 'id' });
+        if (error) {
+          console.error('Supabase category save error:', error);
+          supabaseError = error.message;
+        }
+      }
+    }
+
+    res.status(201).json({ ...newCategory, supabaseError });
   });
 
-  app.put('/api/categories/:id', (req, res) => {
+  app.put('/api/categories/:id', async (req, res) => {
     const id = req.params.id;
     const updatedData = req.body;
     const categories = readCategories();
@@ -484,10 +537,24 @@ async function startServer() {
 
     categories[index] = { ...categories[index], ...updatedData, id };
     writeCategories(categories);
-    res.json(categories[index]);
+
+    // Sync with Supabase if configured
+    let supabaseError = null;
+    if (isServerSupabaseConfigured()) {
+      const supabase = getSupabaseServerClient();
+      if (supabase) {
+        const { error } = await supabase.from('categories').upsert(categories[index], { onConflict: 'id' });
+        if (error) {
+          console.error('Supabase category update error:', error);
+          supabaseError = error.message;
+        }
+      }
+    }
+
+    res.json({ ...categories[index], supabaseError });
   });
 
-  app.delete('/api/categories/:id', (req, res) => {
+  app.delete('/api/categories/:id', async (req, res) => {
     const id = req.params.id;
     if (id === 'all') {
       return res.status(400).json({ error: 'Cannot delete default "All" category' });
@@ -514,6 +581,16 @@ async function startServer() {
     });
     writeProducts(products);
 
+    // Sync with Supabase if configured
+    if (isServerSupabaseConfigured()) {
+      const supabase = getSupabaseServerClient();
+      if (supabase) {
+        await supabase.from('categories').delete().eq('id', id);
+        // update products with category 'decor'
+        await supabase.from('products').upsert(products, { onConflict: 'id' });
+      }
+    }
+
     res.json({
       message: 'Category deleted successfully',
       id,
@@ -524,7 +601,7 @@ async function startServer() {
   });
 
   // --- FULL DATABASE BACKUP / BULK SYNC ---
-  app.post('/api/sync', (req, res) => {
+  app.post('/api/sync', async (req, res) => {
     const { products, categories } = req.body;
     if (Array.isArray(products)) {
       writeProducts(products);
@@ -532,10 +609,45 @@ async function startServer() {
     if (Array.isArray(categories)) {
       writeCategories(categories);
     }
+
+    let supabaseResult = { success: false, message: 'Supabase URL/Key missing in .env' };
+
+    if (isServerSupabaseConfigured()) {
+      const supabase = getSupabaseServerClient();
+      if (supabase) {
+        try {
+          const catList = Array.isArray(categories) ? categories : readCategories();
+          const prodList = Array.isArray(products) ? products : readProducts();
+
+          const { error: catErr } = await supabase.from('categories').upsert(catList, { onConflict: 'id' });
+          if (catErr) {
+            throw new Error(`Category Sync Error: ${catErr.message} (Code: ${catErr.code})`);
+          }
+
+          const { error: prodErr } = await supabase.from('products').upsert(prodList, { onConflict: 'id' });
+          if (prodErr) {
+            throw new Error(`Product Sync Error: ${prodErr.message} (Code: ${prodErr.code})`);
+          }
+
+          supabaseResult = {
+            success: true,
+            message: 'Successfully saved and synced to Supabase database!',
+          };
+        } catch (err: any) {
+          console.error('Supabase Sync Failed:', err);
+          supabaseResult = {
+            success: false,
+            message: err.message || 'Failed saving to Supabase',
+          };
+        }
+      }
+    }
+
     res.json({
       message: 'Database synced and persisted successfully',
       productsCount: Array.isArray(products) ? products.length : readProducts().length,
       categoriesCount: Array.isArray(categories) ? categories.length : readCategories().length,
+      supabase: supabaseResult,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
     });
   });

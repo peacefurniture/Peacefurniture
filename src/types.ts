@@ -16,39 +16,48 @@ export type CategoryId =
 export interface Category {
   id: CategoryId;
   name: string;
+  slug?: string;
   image: string;
   count: number;
   isActive?: boolean; // false means hidden/deactivated from public catalogue
+  sort_order?: number;
+  deleted_at?: string | null;
+  attributes?: Record<string, any>;
 }
 
 export interface FurnitureItem {
   id: string;
+  slug?: string;
   name: string;
   category: CategoryId;
+  group_id?: string;
   price: number;
   originalPrice?: number;
   description: string;
   longDescription?: string;
   image: string;
   additionalImages?: string[];
-  dimensions: {
+  dimensions?: {
     width: string;
     depth: string;
     height: string;
-  };
-  material: string;
+  } | string;
+  material?: string;
   finish?: string;
   seatingCapacity?: number;
-  color: string;
+  color?: string;
   colorOptions?: { name: string; hex: string }[];
-  rating: number;
-  reviewsCount: number;
+  rating?: number;
+  reviewsCount?: number;
   inStock: boolean;
-  warranty: string;
+  warranty?: string;
   isPopular?: boolean;
   isNewArrival?: boolean;
   isActive?: boolean; // false means hidden/deactivated
-  tags: string[];
+  tags?: string[];
+  sort_order?: number;
+  deleted_at?: string | null;
+  attributes?: Record<string, any>;
 }
 
 export interface AdminUser {

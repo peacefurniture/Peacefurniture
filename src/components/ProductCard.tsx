@@ -1,6 +1,7 @@
 import React from 'react';
 import { ArrowRight } from 'lucide-react';
 import { FurnitureItem } from '../types';
+import { formatCurrency } from '../config/niche';
 
 interface ProductCardProps {
   product: FurnitureItem;
@@ -22,10 +23,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           loading="lazy"
         />
 
-        {/* In-Stock or Tag indicator */}
-        {product.originalPrice && (
+        {/* Discount Badge */}
+        {product.originalPrice && product.originalPrice > product.price && (
           <span className="absolute bottom-2.5 left-2.5 bg-gray-900/80 backdrop-blur-sm text-white text-[10px] font-semibold px-2 py-0.5 rounded-md">
-            Save ₹{(product.originalPrice - product.price).toLocaleString('en-IN')}
+            Save {formatCurrency(product.originalPrice - product.price)}
           </span>
         )}
       </div>
@@ -33,10 +34,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       {/* Card Info Body */}
       <div className="p-3 sm:p-4 flex flex-col flex-1 justify-between">
         <div>
-          {/* Product Title */}
+          {/* Product Title (Full Title Shown) */}
           <h3
             onClick={() => onViewDetails(product)}
-            className="font-bold text-gray-900 text-sm sm:text-base leading-snug line-clamp-1 hover:text-[#E11D2A] transition-colors cursor-pointer"
+            className="font-bold text-gray-900 text-sm sm:text-base leading-snug hover:text-[#E11D2A] transition-colors cursor-pointer"
             title={product.name}
           >
             {product.name}
@@ -45,17 +46,17 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           {/* Price */}
           <div className="flex items-baseline gap-2 mt-1">
             <span className="text-base sm:text-lg font-extrabold text-[#E11D2A]">
-              ₹ {product.price.toLocaleString('en-IN')}
+              {formatCurrency(product.price)}
             </span>
             {product.originalPrice && (
               <span className="text-xs text-gray-400 line-through">
-                ₹ {product.originalPrice.toLocaleString('en-IN')}
+                {formatCurrency(product.originalPrice)}
               </span>
             )}
           </div>
 
-          {/* Description */}
-          <p className="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed font-normal">
+          {/* Description (Full text shown without line truncation) */}
+          <p className="text-xs text-gray-600 mt-2 leading-relaxed font-normal">
             {product.description}
           </p>
         </div>

@@ -12,15 +12,27 @@ import { FilterModal } from './components/FilterModal';
 import { ImageSearchModal } from './components/ImageSearchModal';
 import { NavDrawer } from './components/NavDrawer';
 import { Footer } from './components/Footer';
-import { Home, Search, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { Home, Search, ShieldCheck, CheckCircle2, AlertCircle } from 'lucide-react';
+import { isSupabaseConfigured } from './lib/supabase';
+import {
+  fetchItems,
+  fetchGroups,
+  saveItem,
+  saveGroup,
+  softDeleteItem,
+  softDeleteGroup,
+  seedLocalMemory,
+  DBItem,
+  DBGroup,
+} from './lib/data';
+import { NICHE_CONFIG } from './config/niche';
 
 export default function App() {
   // Navigation: 'home' = Page 1 Catalogue | 'search' = Page 2 Search Furniture | 'admin' = Admin Portal
   const [currentView, setCurrentView] = useState<'home' | 'search' | 'admin'>('home');
 
-  // Furniture Products Master State
+  // Master State
   const [products, setProducts] = useState<FurnitureItem[]>([]);
-  // Categories Master State
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -28,66 +40,192 @@ export default function App() {
   const [isSyncingToDb, setIsSyncingToDb] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(() => {
     try {
-      return localStorage.getItem('peacefurniture_last_sync') || null;
+      return localStorage.getItem('niche_last_sync') || null;
     } catch {
       return null;
     }
   });
 
-  // Fetch Products & Categories from Express Backend REST API
-  const fetchDataFromApi = async () => {
+  const isConfigured = isSupabaseConfigured();
+
+  // Seed default data & load initial state from unified data layer
+  const loadData = async () => {
     setIsLoading(true);
+
+    // Map default furniture data to generic memory seed
+    const seedGroups: DBGroup[] = CATEGORIES.map((c, i) => ({
+      id: c.id,
+      slug: c.id,
+      name: c.name,
+      image: c.image,
+      sort_order: i + 1,
+      available: c.isActive !== false,
+      attributes: {},
+    }));
+
+    const seedItems: DBItem[] = FURNITURE_ITEMS.map((item, i) => ({
+      id: item.id,
+      slug: item.id,
+      name: item.name,
+      group_id: item.category,
+      price: item.price,
+      original_price: item.originalPrice,
+      description: item.description,
+      image: item.image,
+      additional_images: item.additionalImages || [],
+      sort_order: i + 1,
+      available: item.isActive !== false,
+      attributes: {
+        longDescription: item.longDescription,
+        dimensions: item.dimensions,
+        material: item.material,
+        finish: item.finish,
+        seatingCapacity: item.seatingCapacity,
+        color: item.color,
+        warranty: item.warranty,
+        isPopular: item.isPopular,
+        inStock: item.inStock,
+        tags: item.tags,
+      },
+    }));
+
+    seedLocalMemory(seedGroups, seedItems);
+
     try {
-      const [resProd, resCat] = await Promise.all([
-        fetch('/api/items'),
-        fetch('/api/categories'),
+      const [fetchedGroups, fetchedItems] = await Promise.all([
+        fetchGroups(false),
+        fetchItems(false),
       ]);
 
-      if (resProd.ok && resCat.ok) {
-        const prodData = await resProd.json();
-        const catData = await resCat.json();
-        setProducts(prodData);
-        setCategories(catData);
+      if (fetchedGroups.length > 0) {
+        const mappedCats: Category[] = fetchedGroups.map((g) => ({
+          id: g.id as CategoryId,
+          name: g.name,
+          image: g.image || 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=300&q=80',
+          count: 0,
+          isActive: g.available,
+          sort_order: g.sort_order,
+          deleted_at: g.deleted_at,
+        }));
+
+        // Ensure default 'all' category is present
+        if (!mappedCats.some((c) => c.id === 'all')) {
+          mappedCats.unshift({
+            id: 'all',
+            name: 'All',
+            image: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=300&q=80',
+            count: fetchedItems.length,
+            isActive: true,
+          });
+        }
+        setCategories(mappedCats);
       } else {
-        throw new Error('API request failed');
+        setCategories(CATEGORIES);
+      }
+
+      if (fetchedItems.length > 0) {
+        const mappedItems: FurnitureItem[] = fetchedItems.map((item) => ({
+          id: item.id,
+          name: item.name,
+          category: (item.group_id || 'dining') as CategoryId,
+          price: item.price,
+          originalPrice: item.original_price,
+          description: item.description,
+          longDescription: item.attributes?.longDescription || item.description,
+          image: item.image,
+          additionalImages: item.additional_images,
+          dimensions: item.attributes?.dimensions || { width: '48"', depth: '24"', height: '30"' },
+          material: item.attributes?.material || 'Solid Wood',
+          finish: item.attributes?.finish || 'Natural Finish',
+          seatingCapacity: item.attributes?.seatingCapacity,
+          color: item.attributes?.color || 'Natural',
+          rating: item.attributes?.rating || 4.8,
+          reviewsCount: item.attributes?.reviewsCount || 10,
+          inStock: item.available && (item.attributes?.inStock ?? true),
+          isActive: item.available,
+          warranty: item.attributes?.warranty || '5 Years Warranty',
+          tags: item.attributes?.tags || ['furniture'],
+          deleted_at: item.deleted_at,
+          sort_order: item.sort_order,
+        }));
+        setProducts(mappedItems);
+      } else {
+        setProducts(FURNITURE_ITEMS.map((item) => ({ ...item, isActive: true })));
       }
     } catch (err) {
-      console.warn('Backend API fetch error, using local fallback:', err);
-      // Fallback to initial static seed if server isn't ready
-      setProducts(FURNITURE_ITEMS.map((item) => ({ ...item, isActive: true })));
+      console.warn('Error loading via data layer, fallback to initial seed:', err);
       setCategories(CATEGORIES);
+      setProducts(FURNITURE_ITEMS.map((item) => ({ ...item, isActive: true })));
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchDataFromApi();
+    loadData();
   }, []);
 
   const handleStoreToDatabase = async () => {
     setIsSyncingToDb(true);
     try {
-      const res = await fetch('/api/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ products, categories }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const timestamp = data.timestamp || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        setLastSyncedAt(timestamp);
-        try {
-          localStorage.setItem('peacefurniture_last_sync', timestamp);
-        } catch {
-          // ignore
-        }
-        showToast(`Successfully stored ${products.length} products & ${categories.length - 1} categories to Database!`);
-      } else {
-        throw new Error('Sync failed');
+      let savedCount = 0;
+      let isCloudSynced = false;
+
+      // Save all categories
+      for (const cat of categories) {
+        if (cat.id === 'all') continue;
+        const res = await saveGroup({
+          id: cat.id,
+          name: cat.name,
+          image: cat.image,
+          available: cat.isActive !== false,
+        });
+        if (res.isSupabaseSynced) isCloudSynced = true;
       }
-    } catch {
-      showToast('Error syncing to database server.');
+
+      // Save all products
+      for (const prod of products) {
+        const res = await saveItem({
+          id: prod.id,
+          name: prod.name,
+          group_id: prod.category,
+          price: prod.price,
+          original_price: prod.originalPrice,
+          description: prod.description,
+          image: prod.image,
+          additional_images: prod.additionalImages,
+          available: prod.isActive !== false,
+          attributes: {
+            longDescription: prod.longDescription,
+            dimensions: prod.dimensions,
+            material: prod.material,
+            finish: prod.finish,
+            seatingCapacity: prod.seatingCapacity,
+            color: prod.color,
+            warranty: prod.warranty,
+            inStock: prod.inStock,
+            tags: prod.tags,
+          },
+        });
+        if (res.isSupabaseSynced) isCloudSynced = true;
+        savedCount++;
+      }
+
+      const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      setLastSyncedAt(timestamp);
+      try {
+        localStorage.setItem('niche_last_sync', timestamp);
+      } catch {
+        // ignore
+      }
+
+      if (isCloudSynced) {
+        showToast(`✅ Saved ${savedCount} items to Supabase Cloud Database!`);
+      } else {
+        showToast(`Stored ${savedCount} items in Local Memory (Add Supabase URL to sync to cloud)`);
+      }
+    } catch (err: any) {
+      showToast(`Sync Notice: ${err.message || 'Saved locally'}`);
     } finally {
       setIsSyncingToDb(false);
     }
@@ -99,7 +237,7 @@ export default function App() {
     setToastMessage(msg);
     setTimeout(() => {
       setToastMessage(null);
-    }, 3200);
+    }, 3800);
   };
 
   // Search state
@@ -137,14 +275,14 @@ export default function App() {
 
   // Active Categories for Public Store Front
   const activeCategories = useMemo(() => {
-    return categories.filter((c) => c.isActive !== false);
+    return categories.filter((c) => c.isActive !== false && !c.deleted_at);
   }, [categories]);
 
   // PUBLIC VISIBLE PRODUCTS FOR PAGE 1 (CATALOGUE)
   const catalogueProducts = useMemo(() => {
-    const activeCategoryIds = new Set(categories.filter((c) => c.isActive !== false).map((c) => c.id));
+    const activeCategoryIds = new Set(categories.filter((c) => c.isActive !== false && !c.deleted_at).map((c) => c.id));
     let items = products.filter(
-      (item) => item.isActive !== false && activeCategoryIds.has(item.category)
+      (item) => item.isActive !== false && !item.deleted_at && (item.category === 'all' || activeCategoryIds.has(item.category))
     );
 
     if (selectedCategory !== 'all') {
@@ -156,7 +294,7 @@ export default function App() {
     } else if (filters.sortBy === 'price-desc') {
       items.sort((a, b) => b.price - a.price);
     } else if (filters.sortBy === 'rating') {
-      items.sort((a, b) => b.rating - a.rating);
+      items.sort((a, b) => (b.rating || 5) - (a.rating || 5));
     } else if (filters.sortBy === 'newest') {
       items.sort((a, b) => (b.isNewArrival ? 1 : 0) - (a.isNewArrival ? 1 : 0));
     } else {
@@ -168,9 +306,9 @@ export default function App() {
 
   // PUBLIC VISIBLE PRODUCTS FOR PAGE 2 (SEARCH)
   const searchResults = useMemo(() => {
-    const activeCategoryIds = new Set(categories.filter((c) => c.isActive !== false).map((c) => c.id));
+    const activeCategoryIds = new Set(categories.filter((c) => c.isActive !== false && !c.deleted_at).map((c) => c.id));
     let items = products.filter(
-      (item) => item.isActive !== false && activeCategoryIds.has(item.category)
+      (item) => item.isActive !== false && !item.deleted_at && (item.category === 'all' || activeCategoryIds.has(item.category))
     );
 
     if (searchQuery.trim()) {
@@ -179,7 +317,7 @@ export default function App() {
         const matchesName = item.name.toLowerCase().includes(query);
         const matchesCat = item.category.toLowerCase().includes(query);
         const matchesDesc = item.description.toLowerCase().includes(query);
-        const matchesMat = item.material.toLowerCase().includes(query);
+        const matchesMat = item.material ? item.material.toLowerCase().includes(query) : false;
         const matchesTags = item.tags ? item.tags.some((tag) => tag.toLowerCase().includes(query)) : false;
         return matchesName || matchesCat || matchesDesc || matchesMat || matchesTags;
       });
@@ -193,7 +331,7 @@ export default function App() {
 
     if (filters.material && filters.material !== 'All Materials') {
       items = items.filter((item) =>
-        item.material.toLowerCase().includes(filters.material.toLowerCase())
+        item.material ? item.material.toLowerCase().includes(filters.material.toLowerCase()) : false
       );
     }
 
@@ -208,67 +346,71 @@ export default function App() {
     return items;
   }, [products, categories, searchQuery, filters]);
 
-  // ============ ADMIN ACTIONS (BACKEND CONNECTED) ============
+  // ============ ADMIN ACTIONS (DATA LAYER CONNECTED) ============
 
   // Add or Edit Product
   const handleSaveProduct = async (product: FurnitureItem) => {
     const isEdit = Boolean(editingAdminProduct);
     try {
-      const url = isEdit ? `/api/items/${product.id}` : '/api/items';
-      const method = isEdit ? 'PUT' : 'POST';
-
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(product),
+      const { data, isSupabaseSynced } = await saveItem({
+        id: product.id,
+        name: product.name,
+        group_id: product.category,
+        price: product.price,
+        original_price: product.originalPrice,
+        description: product.description,
+        image: product.image,
+        additional_images: product.additionalImages,
+        available: product.isActive !== false,
+        attributes: {
+          longDescription: product.longDescription,
+          dimensions: product.dimensions,
+          material: product.material,
+          finish: product.finish,
+          seatingCapacity: product.seatingCapacity,
+          color: product.color,
+          warranty: product.warranty,
+          inStock: product.inStock,
+          tags: product.tags,
+        },
       });
 
-      if (res.ok) {
-        const savedItem = await res.json();
-        setProducts((prev) => {
-          const idx = prev.findIndex((p) => p.id === savedItem.id);
-          if (idx >= 0) {
-            const next = [...prev];
-            next[idx] = savedItem;
-            return next;
-          }
-          return [savedItem, ...prev];
-        });
-        showToast(isEdit ? `Updated "${savedItem.name}"` : `Added "${savedItem.name}" to catalogue`);
-      } else {
-        throw new Error('Failed to save product on server');
-      }
-    } catch {
-      // Local fallback
+      const updatedProd: FurnitureItem = {
+        ...product,
+        id: data.id,
+      };
+
       setProducts((prev) => {
-        const idx = prev.findIndex((p) => p.id === product.id);
+        const idx = prev.findIndex((p) => p.id === product.id || p.id === data.id);
         if (idx >= 0) {
           const next = [...prev];
-          next[idx] = product;
+          next[idx] = updatedProd;
           return next;
         }
-        return [product, ...prev];
+        return [updatedProd, ...prev];
       });
-      showToast(isEdit ? `Updated "${product.name}"` : `Added "${product.name}" to catalogue`);
+
+      showToast(
+        isSupabaseSynced
+          ? `✅ ${isEdit ? 'Updated' : 'Added'} "${product.name}" in Supabase DB!`
+          : `Saved "${product.name}" locally`
+      );
+    } catch (err: any) {
+      showToast(`Error: ${err.message}`);
     }
 
     setEditingAdminProduct(null);
   };
 
-  // Delete Product
+  // Soft Delete Product
   const handleDeleteProduct = async (productId: string) => {
-    const deletedItem = products.find((p) => p.id === productId);
+    const target = products.find((p) => p.id === productId);
     try {
-      const res = await fetch(`/api/items/${productId}`, { method: 'DELETE' });
-      if (res.ok) {
-        setProducts((prev) => prev.filter((p) => p.id !== productId));
-        showToast(`Deleted "${deletedItem?.name || 'Product'}"`);
-      } else {
-        throw new Error('Failed to delete product from server');
-      }
-    } catch {
-      setProducts((prev) => prev.filter((p) => p.id !== productId));
-      showToast(`Deleted "${deletedItem?.name || 'Product'}"`);
+      await softDeleteItem(productId);
+      setProducts((prev) => prev.map((p) => (p.id === productId ? { ...p, deleted_at: new Date().toISOString() } : p)));
+      showToast(`Moved "${target?.name || 'Item'}" to Trash`);
+    } catch (err: any) {
+      showToast(`Delete Error: ${err.message}`);
     }
   };
 
@@ -278,32 +420,20 @@ export default function App() {
     if (!target) return;
 
     const newStatus = target.isActive === false ? true : false;
-    const updatedProduct = { ...target, isActive: newStatus };
+    const updated = { ...target, isActive: newStatus };
 
     try {
-      const res = await fetch(`/api/items/${productId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isActive: newStatus }),
+      await saveItem({
+        id: target.id,
+        name: target.name,
+        group_id: target.category,
+        available: newStatus,
       });
 
-      if (res.ok) {
-        setProducts((prev) => prev.map((p) => (p.id === productId ? updatedProduct : p)));
-        showToast(
-          newStatus
-            ? `"${target.name}" is now Active in catalogue`
-            : `"${target.name}" is now Hidden / Deactivated`
-        );
-      } else {
-        throw new Error('Failed to toggle status on server');
-      }
-    } catch {
-      setProducts((prev) => prev.map((p) => (p.id === productId ? updatedProduct : p)));
-      showToast(
-        newStatus
-          ? `"${target.name}" is now Active in catalogue`
-          : `"${target.name}" is now Hidden / Deactivated`
-      );
+      setProducts((prev) => prev.map((p) => (p.id === productId ? updated : p)));
+      showToast(newStatus ? `"${target.name}" is now Active` : `"${target.name}" is now Hidden`);
+    } catch (err: any) {
+      showToast(`Status Error: ${err.message}`);
     }
   };
 
@@ -321,41 +451,35 @@ export default function App() {
   const handleSaveCategory = async (category: Category) => {
     const isEdit = Boolean(editingAdminCategory);
     try {
-      const url = isEdit ? `/api/categories/${category.id}` : '/api/categories';
-      const method = isEdit ? 'PUT' : 'POST';
-
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(category),
+      const { data, isSupabaseSynced } = await saveGroup({
+        id: category.id,
+        name: category.name,
+        image: category.image,
+        available: category.isActive !== false,
       });
 
-      if (res.ok) {
-        const savedCategory = await res.json();
-        setCategories((prev) => {
-          const idx = prev.findIndex((c) => c.id === savedCategory.id);
-          if (idx >= 0) {
-            const next = [...prev];
-            next[idx] = savedCategory;
-            return next;
-          }
-          return [...prev, savedCategory];
-        });
-        showToast(isEdit ? `Updated category "${savedCategory.name}"` : `Added category "${savedCategory.name}"`);
-      } else {
-        throw new Error('Failed to save category on server');
-      }
-    } catch {
+      const updatedCat: Category = {
+        ...category,
+        id: data.id as CategoryId,
+      };
+
       setCategories((prev) => {
-        const idx = prev.findIndex((c) => c.id === category.id);
+        const idx = prev.findIndex((c) => c.id === category.id || c.id === data.id);
         if (idx >= 0) {
           const next = [...prev];
-          next[idx] = category;
+          next[idx] = updatedCat;
           return next;
         }
-        return [...prev, category];
+        return [...prev, updatedCat];
       });
-      showToast(isEdit ? `Updated category "${category.name}"` : `Added category "${category.name}"`);
+
+      showToast(
+        isSupabaseSynced
+          ? `✅ ${isEdit ? 'Updated' : 'Added'} "${category.name}" in Supabase DB!`
+          : `Saved "${category.name}" locally`
+      );
+    } catch (err: any) {
+      showToast(`Error: ${err.message}`);
     }
 
     setEditingAdminCategory(null);
@@ -363,27 +487,17 @@ export default function App() {
 
   const handleDeleteCategory = async (categoryId: string) => {
     if (categoryId === 'all') {
-      showToast('Cannot delete the "All" category');
+      showToast('Cannot delete default "All" category');
       return;
     }
     const catToDelete = categories.find((c) => c.id === categoryId);
 
     try {
-      const res = await fetch(`/api/categories/${categoryId}`, { method: 'DELETE' });
-      if (res.ok) {
-        const data = await res.json();
-        setCategories((prev) => prev.filter((c) => c.id !== categoryId));
-        if (data.products) {
-          setProducts(data.products);
-        }
-        showToast(`Deleted category "${catToDelete?.name || categoryId}"`);
-      } else {
-        throw new Error('Failed to delete category on server');
-      }
-    } catch {
-      setCategories((prev) => prev.filter((c) => c.id !== categoryId));
-      setProducts((prev) => prev.map((p) => (p.category === categoryId ? { ...p, category: 'decor' } : p)));
-      showToast(`Deleted category "${catToDelete?.name || categoryId}"`);
+      await softDeleteGroup(categoryId);
+      setCategories((prev) => prev.map((c) => (c.id === categoryId ? { ...c, deleted_at: new Date().toISOString() } : c)));
+      showToast(`Moved category "${catToDelete?.name || categoryId}" to Trash`);
+    } catch (err: any) {
+      showToast(`Error: ${err.message}`);
     }
   };
 
@@ -395,29 +509,16 @@ export default function App() {
     const updatedCategory = { ...target, isActive: newStatus };
 
     try {
-      const res = await fetch(`/api/categories/${categoryId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isActive: newStatus }),
+      await saveGroup({
+        id: target.id,
+        name: target.name,
+        available: newStatus,
       });
 
-      if (res.ok) {
-        setCategories((prev) => prev.map((c) => (c.id === categoryId ? updatedCategory : c)));
-        showToast(
-          newStatus
-            ? `Category "${target.name}" is now Active in catalogue`
-            : `Category "${target.name}" is now Hidden / Deactivated`
-        );
-      } else {
-        throw new Error('Failed to toggle category status on server');
-      }
-    } catch {
       setCategories((prev) => prev.map((c) => (c.id === categoryId ? updatedCategory : c)));
-      showToast(
-        newStatus
-          ? `Category "${target.name}" is now Active in catalogue`
-          : `Category "${target.name}" is now Hidden / Deactivated`
-      );
+      showToast(newStatus ? `Category "${target.name}" is now Active` : `Category "${target.name}" is now Hidden`);
+    } catch (err: any) {
+      showToast(`Error: ${err.message}`);
     }
   };
 
@@ -463,6 +564,18 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#FAFAFA] text-gray-900 flex flex-col font-['Plus_Jakarta_Sans',sans-serif]">
+      {/* Missing Supabase Env Warning Banner */}
+      {!isConfigured && (
+        <div className="bg-amber-50 border-b border-amber-200 text-amber-900 px-4 py-2.5 text-xs flex items-center justify-between gap-2 z-50">
+          <div className="flex items-center gap-2 max-w-5xl mx-auto">
+            <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+            <span>
+              <strong>Supabase Setup Notice:</strong> <code>VITE_SUPABASE_URL</code> or <code>VITE_SUPABASE_ANON_KEY</code> missing in <code>.env</code>. The app is running with local memory fallback persistence.
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Toast Notification Alert */}
       {toastMessage && (
         <div className="fixed top-4 right-4 z-50 bg-gray-900 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 text-xs font-bold border border-gray-700 animate-in fade-in slide-in-from-top-2">
