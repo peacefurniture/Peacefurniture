@@ -1,0 +1,8 @@
+{
+  "name": "Remix Furniture Catalog Builder",
+  "description": "Instantly clone your furniture catalog into a professional, high-fidelity website using your existing design templates.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
