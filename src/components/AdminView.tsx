@@ -51,7 +51,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   lastSyncedAt,
   onGoToStore,
 }) => {
-  const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'supabase'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'categories'>('products');
   const [searchTerm, setSearchTerm] = useState('');
   const [categorySearchTerm, setCategorySearchTerm] = useState('');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
@@ -283,18 +283,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
             >
               <Layers className="w-4 h-4" />
               <span>Categories ({categories.length - 1})</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('supabase')}
-              className={`px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
-                activeTab === 'supabase'
-                  ? 'bg-[#3ECF8E] text-slate-950 font-black shadow-md shadow-emerald-500/25'
-                  : 'bg-white hover:bg-gray-100 text-gray-700 border border-gray-200'
-              }`}
-            >
-              <Database className="w-4 h-4" />
-              <span>Supabase Backend</span>
             </button>
           </div>
 
@@ -754,82 +742,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   <p className="font-bold text-gray-800 text-sm">No categories match your search</p>
                 </div>
               )}
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'supabase' && (
-          <div className="bg-white rounded-3xl border border-gray-200 p-6 sm:p-8 shadow-xs">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-12 h-12 rounded-2xl bg-[#3ECF8E]/15 text-[#0D9446] flex items-center justify-center font-black">
-                <Database className="w-6 h-6" />
-              </div>
-              <div>
-                <h2 className="text-xl font-extrabold text-gray-950">Supabase Backend Integration</h2>
-                <p className="text-xs sm:text-sm text-gray-500">
-                  Connect your external Supabase database project for permanent cloud storage.
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-6">
-              {/* Step 1: SQL Schema */}
-              <div className="bg-slate-900 rounded-2xl p-5 text-slate-100 text-xs font-mono relative">
-                <div className="flex items-center justify-between mb-3 text-slate-400 font-sans text-xs font-bold">
-                  <span>1. Execute this SQL Script in your Supabase SQL Editor:</span>
-                  <button
-                    onClick={() => {
-                      const sql = `CREATE TABLE IF NOT EXISTS categories (id TEXT PRIMARY KEY, name TEXT NOT NULL, image TEXT, count INTEGER DEFAULT 0, "isActive" BOOLEAN DEFAULT true);\nCREATE TABLE IF NOT EXISTS products (id TEXT PRIMARY KEY, name TEXT NOT NULL, category TEXT, price NUMERIC NOT NULL, "originalPrice" NUMERIC, description TEXT, "longDescription" TEXT, image TEXT, "additionalImages" TEXT[], dimensions JSONB, material TEXT, finish TEXT, "seatingCapacity" INTEGER, color TEXT, rating NUMERIC DEFAULT 5.0, "reviewsCount" INTEGER DEFAULT 0, "inStock" BOOLEAN DEFAULT true, warranty TEXT, "isPopular" BOOLEAN DEFAULT false, "isActive" BOOLEAN DEFAULT true, tags TEXT[]);`;
-                      navigator.clipboard.writeText(sql);
-                      alert('✅ SQL Schema copied to clipboard!');
-                    }}
-                    className="bg-[#3ECF8E] hover:bg-[#34B27B] text-slate-950 px-3 py-1 rounded-lg font-bold text-[11px] cursor-pointer"
-                  >
-                    Copy SQL Schema
-                  </button>
-                </div>
-                <pre className="overflow-x-auto p-3 bg-slate-950 rounded-xl text-[11px] leading-relaxed text-emerald-400">
-{`-- Categories Table
-CREATE TABLE categories (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  image TEXT,
-  count INTEGER DEFAULT 0,
-  "isActive" BOOLEAN DEFAULT true
-);
-
--- Products Table
-CREATE TABLE products (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  category TEXT REFERENCES categories(id) ON DELETE SET NULL,
-  price NUMERIC NOT NULL,
-  "originalPrice" NUMERIC,
-  description TEXT,
-  image TEXT,
-  material TEXT,
-  color TEXT,
-  "inStock" BOOLEAN DEFAULT true,
-  "isActive" BOOLEAN DEFAULT true
-);`}
-                </pre>
-              </div>
-
-              {/* Step 2: Secret Credentials info */}
-              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 sm:p-5 text-amber-900 text-xs sm:text-sm leading-relaxed">
-                <h4 className="font-extrabold mb-1 flex items-center gap-2 text-amber-950">
-                  <AlertTriangle className="w-4 h-4 text-amber-600" />
-                  2. Provide Your Supabase API Keys
-                </h4>
-                <p className="mb-2">
-                  Paste your Supabase credentials into the project's <code className="bg-amber-100 px-1.5 py-0.5 rounded font-mono font-bold text-amber-950">.env</code> file or share them directly in chat:
-                </p>
-                <div className="bg-white/80 p-3 rounded-xl font-mono text-xs text-slate-800 space-y-1 border border-amber-200">
-                  <div>VITE_SUPABASE_URL="https://your-project.supabase.co"</div>
-                  <div>VITE_SUPABASE_ANON_KEY="your-anon-key"</div>
-                  <div>SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"</div>
-                </div>
-              </div>
             </div>
           </div>
         )}
