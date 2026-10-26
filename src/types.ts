@@ -20,9 +20,7 @@ export interface Category {
   image: string;
   count: number;
   isActive?: boolean; // false means hidden/deactivated from public catalogue
-  sort_order?: number;
   deleted_at?: string | null;
-  attributes?: Record<string, any>;
 }
 
 export interface FurnitureItem {
@@ -36,7 +34,6 @@ export interface FurnitureItem {
   description: string;
   longDescription?: string;
   image: string;
-  additionalImages?: string[];
   dimensions?: {
     width: string;
     depth: string;
@@ -55,9 +52,7 @@ export interface FurnitureItem {
   isNewArrival?: boolean;
   isActive?: boolean; // false means hidden/deactivated
   tags?: string[];
-  sort_order?: number;
   deleted_at?: string | null;
-  attributes?: Record<string, any>;
 }
 
 export interface AdminUser {

@@ -7,10 +7,8 @@ export interface DBGroup {
   slug: string;
   name: string;
   image?: string;
-  sort_order: number;
   active: boolean;
   item_count?: number;
-  attributes: Record<string, any>;
   deleted_at?: string | null;
   created_at?: string;
   updated_at?: string;
@@ -26,8 +24,6 @@ export interface DBItem {
   description: string;
   image: string;
   additional_images?: string[];
-  attributes: Record<string, any>;
-  sort_order: number;
   active: boolean;
   deleted_at?: string | null;
   created_at?: string;
@@ -42,8 +38,6 @@ export interface DBPromotion {
   image?: string;
   link_url?: string;
   autoplay: boolean;
-  attributes: Record<string, any>;
-  sort_order: number;
   active: boolean;
   deleted_at?: string | null;
   created_at?: string;
@@ -193,7 +187,7 @@ export async function fetchGroups(includeDeleted = false): Promise<DBGroup[]> {
     throw new Error('Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
   }
 
-  let query = supabase.from('categories').select('id, name, slug, item_count, active, created_at, deleted_at').order('name', { ascending: true });
+  let query = supabase.from('categories').select('id, name, slug, image, item_count, active, created_at, deleted_at').order('name', { ascending: true });
   if (!includeDeleted) {
     query = query.is('deleted_at', null);
   }
@@ -206,10 +200,9 @@ export async function fetchGroups(includeDeleted = false): Promise<DBGroup[]> {
     name: g.name,
     active: g.active ?? true,
     item_count: g.item_count ?? 0,
+    image: g.image || '',
     deleted_at: g.deleted_at,
     created_at: g.created_at,
-    sort_order: 0,
-    attributes: {},
   }));
 }
 
@@ -228,6 +221,7 @@ export async function saveGroup(group: Partial<DBGroup>): Promise<{ data: DBGrou
     const payload: any = {
       name,
       slug,
+      image: group.image || '',
       active: group.active ?? true,
       deleted_at: null,
     };
@@ -239,7 +233,7 @@ export async function saveGroup(group: Partial<DBGroup>): Promise<{ data: DBGrou
     const { data, error } = await supabase
       .from('categories')
       .upsert(payload, { onConflict: payload.id ? 'id' : 'slug' })
-      .select('id, name, slug, item_count, active, created_at, deleted_at')
+      .select('id, name, slug, image, item_count, active, created_at, deleted_at')
       .single();
 
     if (error) {
@@ -258,7 +252,7 @@ export async function fetchItems(includeDeleted = false): Promise<DBItem[]> {
     throw new Error('Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
   }
 
-  let query = supabase.from('items').select('id, name, description, category_id, price, slug, created_at, deleted_at, active').order('name', { ascending: true });
+  let query = supabase.from('items').select('id, name, description, category_id, price, slug, image, created_at, deleted_at, active').order('name', { ascending: true });
   if (!includeDeleted) {
     query = query.is('deleted_at', null);
   }
@@ -272,11 +266,10 @@ export async function fetchItems(includeDeleted = false): Promise<DBItem[]> {
     category_id: item.category_id,
     price: Number(item.price) || 0,
     description: item.description || '',
+    image: item.image || '',
     active: item.active ?? true,
     deleted_at: item.deleted_at,
     created_at: item.created_at,
-    sort_order: 0,
-    attributes: {},
   }));
 }
 
@@ -301,6 +294,7 @@ export async function saveItem(item: Partial<DBItem>): Promise<{ data: DBItem; i
       category_id: resolvedGroupUuid,
       price: Number(item.price) || 0,
       description: item.description || '',
+      image: item.image || '',
       active: item.active ?? true,
       deleted_at: null,
     };
@@ -312,7 +306,7 @@ export async function saveItem(item: Partial<DBItem>): Promise<{ data: DBItem; i
     const { data, error } = await supabase
       .from('items')
       .upsert(payload, { onConflict: payload.id ? 'id' : 'slug' })
-      .select('id, name, description, category_id, price, slug, created_at, deleted_at, active')
+      .select('id, name, description, category_id, price, slug, image, created_at, deleted_at, active')
       .single();
 
     if (error) {
@@ -416,30 +410,6 @@ export async function uploadImage(file: File, bucket: string = 'Images'): Promis
 }
 
 
-/**
- * Reorder Groups
- */
-export async function reorderItems(orderedIds: string[]): Promise<boolean> {
-  if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
-  
-  for (const [index, id] of orderedIds.entries()) {
-    const { error } = await supabase.from('items').update({ sort_order: index + 1 }).eq('id', id);
-    if (error) throw parseSupabaseError(error);
-  }
-
-  return true;
-}
-
-export async function reorderGroups(orderedIds: string[]): Promise<boolean> {
-  if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
-  
-  for (const [index, id] of orderedIds.entries()) {
-    const { error } = await supabase.from('categories').update({ sort_order: index + 1 }).eq('id', id);
-    if (error) throw parseSupabaseError(error);
-  }
-
-  return true;
-}
 
 /**
  * Run Live Database Health Diagnostics Against Supabase
@@ -475,7 +445,7 @@ export async function runDatabaseHealthCheck(): Promise<HealthCheckResult> {
         name: 'Table: categories',
         status: 'fail',
         message: `Error checking "categories" table: ${groupsErr.message} (Code: ${groupsErr.code})`,
-        sqlFix: 'CREATE TABLE IF NOT EXISTS categories (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), slug TEXT, name TEXT NOT NULL, item_count INT DEFAULT 0, active BOOLEAN DEFAULT true, deleted_at TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT NOW());',
+        sqlFix: 'CREATE TABLE IF NOT EXISTS categories (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), slug TEXT, name TEXT NOT NULL, image TEXT, item_count INT DEFAULT 0, active BOOLEAN DEFAULT true, deleted_at TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT NOW());',
       });
     } else {
       result.checks.push({
@@ -502,7 +472,7 @@ export async function runDatabaseHealthCheck(): Promise<HealthCheckResult> {
         name: 'Table: items & Foreign Key',
         status: 'fail',
         message: `Error checking "items" table: ${itemsErr.message} (Code: ${itemsErr.code})`,
-        sqlFix: 'CREATE TABLE IF NOT EXISTS items (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), name TEXT NOT NULL, category_id UUID REFERENCES categories(id) ON DELETE SET NULL, price NUMERIC DEFAULT 0, description TEXT, slug TEXT, active BOOLEAN DEFAULT true, deleted_at TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT NOW());',
+        sqlFix: 'CREATE TABLE IF NOT EXISTS items (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), name TEXT NOT NULL, category_id UUID REFERENCES categories(id) ON DELETE SET NULL, price NUMERIC DEFAULT 0, description TEXT, slug TEXT, image TEXT, active BOOLEAN DEFAULT true, deleted_at TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT NOW());',
       });
     } else {
       result.checks.push({
@@ -585,7 +555,7 @@ export function mapDBItemToFurnitureItem(item: DBItem): FurnitureItem {
     price: item.price,
     description: item.description,
     longDescription: item.description,
-    image: '',
+    image: item.image || '',
     isActive: item.active,
     deleted_at: item.deleted_at,
     inStock: true,
@@ -597,7 +567,7 @@ export function mapDBGroupToCategory(group: DBGroup): Category {
     id: group.id as any,
     name: group.name,
     slug: group.slug,
-    image: '',
+    image: group.image || '',
     count: group.item_count || 0,
     isActive: group.active,
     deleted_at: group.deleted_at,
@@ -612,6 +582,7 @@ export function mapFurnitureItemToDBItem(item: FurnitureItem, existingItem: DBIt
     category_id: item.category as string,
     price: item.price,
     description: item.description,
+    image: item.image || '',
     active: item.isActive ?? true,
   };
 }
@@ -622,6 +593,7 @@ export function mapCategoryToDBGroup(category: Category, existingGroup: DBGroup)
     id: category.id as string,
     name: category.name,
     slug: category.slug || existingGroup.slug,
+    image: category.image || '',
     active: category.isActive ?? true,
   };
 }

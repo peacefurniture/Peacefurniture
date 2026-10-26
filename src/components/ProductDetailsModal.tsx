@@ -18,8 +18,7 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
 
   if (!isOpen || !product) return null;
 
-  const currentMainImage = selectedImage || product.image;
-  const allImages = [product.image, ...(product.additionalImages || [])];
+  const currentMainImage = product.image;
 
   const formatDimensions = (dims: any) => {
     if (!dims) return 'Standard Size';
@@ -59,21 +58,6 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
                 />
               </div>
 
-              {allImages.length > 1 && (
-                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
-                  {allImages.map((img, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => setSelectedImage(img)}
-                      className={`relative w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 border-2 transition-all cursor-pointer ${
-                        currentMainImage === img ? 'border-[#E11D2A] scale-95' : 'border-transparent opacity-70 hover:opacity-100'
-                      }`}
-                    >
-                      <img src={img} alt={`Thumbnail ${idx}`} className="w-full h-full object-cover" />
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
 
             {/* Info Right Column */}

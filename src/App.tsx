@@ -214,6 +214,7 @@ export default function App() {
         category_id: product.category,
         price: product.price,
         description: product.description,
+        image: product.image || '',
         active: product.isActive !== false,
       });
 
@@ -251,6 +252,7 @@ export default function App() {
         id: target.id,
         name: target.name,
         category_id: target.category,
+        image: target.image || '',
         active: newStatus,
       });
 
@@ -279,6 +281,7 @@ export default function App() {
         id: category.id,
         name: category.name,
         slug: category.slug,
+        image: category.image || '',
         active: category.isActive !== false,
       });
 
@@ -317,6 +320,7 @@ export default function App() {
       await saveGroup({
         id: target.id,
         name: target.name,
+        image: target.image || '',
         active: newStatus,
       });
 

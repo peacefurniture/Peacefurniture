@@ -86,7 +86,7 @@ export const NavDrawer: React.FC<NavDrawerProps> = ({
               {(categories
                 ? categories.filter((c) => c.id !== 'all' && c.isActive !== false)
                 : CATEGORIES.slice(1)
-              ).map((cat) => (
+              ).map((cat: any) => (
                 <button
                   key={cat.id}
                   onClick={() => {

@@ -33,8 +33,6 @@ import {
   restoreItem,
   restoreGroup,
   purgeItemPermanently,
-  reorderItems,
-  reorderGroups,
 } from '../lib/data';
 
 interface AdminViewProps {
@@ -165,33 +163,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
     });
   }, [nonDeletedProducts, searchTerm, selectedCategoryFilter, visibilityFilter]);
 
-  // Move item up / down for sort reordering
-  const handleMoveItem = async (index: number, direction: 'up' | 'down') => {
-    const list = [...filteredProducts];
-    const targetIdx = direction === 'up' ? index - 1 : index + 1;
-    if (targetIdx < 0 || targetIdx >= list.length) return;
-
-    const temp = list[index];
-    list[index] = list[targetIdx];
-    list[targetIdx] = temp;
-
-    const orderedIds = list.map((i) => i.id);
-    await reorderItems(orderedIds);
-  };
-
-  // Move category up / down
-  const handleMoveCategory = async (index: number, direction: 'up' | 'down') => {
-    const list = [...filteredCategories];
-    const targetIdx = direction === 'up' ? index - 1 : index + 1;
-    if (targetIdx < 0 || targetIdx >= list.length) return;
-
-    const temp = list[index];
-    list[index] = list[targetIdx];
-    list[targetIdx] = temp;
-
-    const orderedIds = list.map((c) => c.id);
-    await reorderGroups(orderedIds);
-  };
 
   const copySqlSchema = () => {
     const sql = `
@@ -203,10 +174,8 @@ CREATE TABLE IF NOT EXISTS categories (
   slug TEXT UNIQUE,
   name TEXT NOT NULL,
   image TEXT,
-  sort_order INT DEFAULT 0,
   active BOOLEAN DEFAULT true,
   item_count INT DEFAULT 0,
-  attributes JSONB DEFAULT '{}'::jsonb,
   deleted_at TIMESTAMPTZ DEFAULT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -221,14 +190,15 @@ CREATE TABLE IF NOT EXISTS items (
   original_price NUMERIC,
   description TEXT,
   image TEXT,
-  additional_images TEXT[] DEFAULT '{}'::text[],
-  attributes JSONB DEFAULT '{}'::jsonb,
-  sort_order INT DEFAULT 0,
   active BOOLEAN DEFAULT true,
   deleted_at TIMESTAMPTZ DEFAULT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- STORAGE BUCKET POLICIES
+-- CREATE POLICY "Public Access" ON storage.objects FOR SELECT USING (bucket_id = 'Images');
+-- CREATE POLICY "Authenticated Upload" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'Images');
 
 -- Trigger to auto-update item_count in categories
 CREATE OR REPLACE FUNCTION update_category_item_count()
@@ -522,7 +492,6 @@ NOTIFY pgrst, 'reload schema';
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-100 text-[11px] uppercase tracking-wider font-extrabold text-gray-500">
-                      <th className="py-3 px-4">Order</th>
                       <th className="py-3 px-4">{labels.itemSingular}</th>
                       <th className="py-3 px-4">{labels.groupSingular}</th>
                       <th className="py-3 px-4">Price</th>
@@ -541,24 +510,6 @@ NOTIFY pgrst, 'reload schema';
                     ) : (
                       filteredProducts.map((item, idx) => (
                         <tr key={item.id} className="hover:bg-gray-50/60 transition-colors">
-                          <td className="py-3 px-4">
-                            <div className="flex items-center gap-1">
-                              <button
-                                onClick={() => handleMoveItem(idx, 'up')}
-                                disabled={idx === 0}
-                                className="p-1 text-gray-400 hover:text-gray-700 disabled:opacity-20 cursor-pointer"
-                              >
-                                <ArrowUp className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={() => handleMoveItem(idx, 'down')}
-                                disabled={idx === filteredProducts.length - 1}
-                                className="p-1 text-gray-400 hover:text-gray-700 disabled:opacity-20 cursor-pointer"
-                              >
-                                <ArrowDown className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </td>
                           <td className="py-3 px-4">
                             <div className="flex items-center gap-3">
                               <img
@@ -667,7 +618,6 @@ NOTIFY pgrst, 'reload schema';
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-100 text-[11px] uppercase tracking-wider font-extrabold text-gray-500">
-                      <th className="py-3 px-4">Order</th>
                       <th className="py-3 px-4">{labels.groupSingular} Name</th>
                       <th className="py-3 px-4">Items Count</th>
                       <th className="py-3 px-4">Status</th>
@@ -679,24 +629,6 @@ NOTIFY pgrst, 'reload schema';
                       const count = products.filter((p) => p.category === cat.id && !p.deleted_at).length;
                       return (
                         <tr key={cat.id} className="hover:bg-gray-50/60 transition-colors">
-                          <td className="py-3 px-4">
-                            <div className="flex items-center gap-1">
-                              <button
-                                onClick={() => handleMoveCategory(idx, 'up')}
-                                disabled={idx === 0}
-                                className="p-1 text-gray-400 hover:text-gray-700 disabled:opacity-20 cursor-pointer"
-                              >
-                                <ArrowUp className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={() => handleMoveCategory(idx, 'down')}
-                                disabled={idx === filteredCategories.length - 1}
-                                className="p-1 text-gray-400 hover:text-gray-700 disabled:opacity-20 cursor-pointer"
-                              >
-                                <ArrowDown className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </td>
                           <td className="py-3 px-4">
                             <div className="flex items-center gap-3">
                               <img
