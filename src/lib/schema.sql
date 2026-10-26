@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS categories (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Ensure image column exists if table was created without it
+-- Ensure columns exist if table was created previously without them
 ALTER TABLE categories ADD COLUMN IF NOT EXISTS image TEXT;
 ALTER TABLE categories ADD COLUMN IF NOT EXISTS item_count INT DEFAULT 0;
 ALTER TABLE categories ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT true;
@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS items (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Ensure columns exist
+-- Ensure columns exist if table was created previously without them
 ALTER TABLE items ADD COLUMN IF NOT EXISTS image TEXT;
 ALTER TABLE items ADD COLUMN IF NOT EXISTS description TEXT;
 ALTER TABLE items ADD COLUMN IF NOT EXISTS price NUMERIC DEFAULT 0;
@@ -92,8 +92,7 @@ CREATE POLICY "Admin All Categories" ON categories FOR ALL TO authenticated USIN
 DROP POLICY IF EXISTS "Admin All Items" ON items;
 CREATE POLICY "Admin All Items" ON items FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
--- 6. STORAGE BUCKET POLICIES (Run manually or via SQL Editor)
--- Note: Ensure bucket 'Images' exists first.
+-- 6. STORAGE BUCKET POLICIES (Run in Supabase SQL Editor if storage throws errors)
 -- INSERT INTO storage.buckets (id, name, public) VALUES ('Images', 'Images', true) ON CONFLICT (id) DO NOTHING;
 -- CREATE POLICY "Public Access" ON storage.objects FOR SELECT USING (bucket_id = 'Images');
 -- CREATE POLICY "Authenticated Upload" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'Images');

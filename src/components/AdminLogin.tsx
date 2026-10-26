@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { signInAdmin } from '../lib/data';
 import { Lock } from 'lucide-react';
 
 interface AdminLoginProps {
@@ -17,13 +17,11 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin }) => {
     setLoading(true);
     setError(null);
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    // Call the centralized authentication function in src/lib/data.ts
+    const { error: authError } = await signInAdmin(email, password);
 
-    if (error) {
-      setError(error.message);
+    if (authError) {
+      setError(authError.message);
       setLoading(false);
     } else {
       onLogin();
@@ -40,7 +38,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin }) => {
           <h2 className="text-2xl font-black text-gray-900">Admin Login</h2>
         </div>
         
-        {error && <div className="text-xs text-red-600 bg-red-50 p-3 rounded-lg">{error}</div>}
+        {error && <div className="text-xs text-red-600 bg-red-50 p-3 rounded-lg leading-relaxed whitespace-pre-line">{error}</div>}
 
         <div className="space-y-4">
           <div>
@@ -49,7 +47,8 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin }) => {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3"
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#E11D2A]"
+              placeholder="admin@example.com"
               required
             />
           </div>
@@ -59,7 +58,8 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin }) => {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3"
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#E11D2A]"
+              placeholder="••••••••"
               required
             />
           </div>
@@ -68,7 +68,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin }) => {
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-[#E11D2A] text-white py-3 rounded-xl font-bold hover:bg-[#C51322] disabled:opacity-50"
+          className="w-full bg-[#E11D2A] text-white py-3 rounded-xl font-bold hover:bg-[#C51322] disabled:opacity-50 transition-colors cursor-pointer shadow-md shadow-red-500/20"
         >
           {loading ? 'Logging in...' : 'Sign In'}
         </button>

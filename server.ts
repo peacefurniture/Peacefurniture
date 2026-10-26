@@ -6,7 +6,10 @@ import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type } from '@google/genai';
 
-import { getSupabaseServerClient, isServerSupabaseConfigured, SUPABASE_SQL_SCHEMA } from './src/lib/supabaseServer.js';
+// Supabase direct database connection is handled directly on client in src/lib/data.ts
+const isServerSupabaseConfigured = () => false;
+const getSupabaseServerClient = (): any => null;
+const SUPABASE_SQL_SCHEMA = '';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

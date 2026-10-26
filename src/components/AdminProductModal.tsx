@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Upload, Check, Trash2, RefreshCw, AlertCircle } from 'lucide-react';
 import { Category, CategoryId, FurnitureItem } from '../types';
-import { uploadImage } from '../lib/data';
+import { uploadImage, generateUniqueSlug } from '../lib/data';
 
 interface AdminProductModalProps {
   isOpen: boolean;
@@ -9,6 +9,7 @@ interface AdminProductModalProps {
   onSave: (product: FurnitureItem) => void;
   initialProduct?: FurnitureItem | null;
   categories: Category[];
+  existingProducts?: FurnitureItem[];
 }
 
 export const AdminProductModal: React.FC<AdminProductModalProps> = ({
@@ -17,6 +18,7 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
   onSave,
   initialProduct,
   categories,
+  existingProducts = [],
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragActive, setDragActive] = useState(false);
@@ -164,10 +166,17 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
       .map((t) => t.trim().toLowerCase())
       .filter(Boolean);
 
+    const productNameTrimmed = formData.name.trim();
+    const generatedSlug = generateUniqueSlug(
+      productNameTrimmed,
+      existingProducts,
+      initialProduct?.id
+    );
+
     const completeProduct: FurnitureItem = {
       id: initialProduct?.id || `product-${Date.now()}`,
-      slug: formData.slug || undefined,
-      name: formData.name.trim(),
+      slug: generatedSlug,
+      name: productNameTrimmed,
       category: (formData.category || 'dining') as CategoryId,
       price: Number(formData.price) || 9999,
       originalPrice: formData.originalPrice ? Number(formData.originalPrice) : undefined,
@@ -432,18 +441,6 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
                   </option>
                 ))}
               </select>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-                URL Slug (Optional)
-              </label>
-              <input
-                type="text"
-                value={formData.slug || ''}
-                onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
-                placeholder="e.g. wooden-dining-table"
-                className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-gray-900 focus:outline-none focus:border-[#E11D2A] focus:ring-1 focus:ring-[#E11D2A]"
-              />
             </div>
           </div>
 

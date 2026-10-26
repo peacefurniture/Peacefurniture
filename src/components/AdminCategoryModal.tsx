@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Upload, Check, Trash2, RefreshCw, AlertCircle, Layers } from 'lucide-react';
 import { Category } from '../types';
-import { uploadImage } from '../lib/data';
+import { uploadImage, generateUniqueSlug } from '../lib/data';
 
 interface AdminCategoryModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (category: Category) => void;
   initialCategory?: Category | null;
+  existingCategories?: Category[];
 }
 
 export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
@@ -15,6 +16,7 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
   onClose,
   onSave,
   initialCategory,
+  existingCategories = [],
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragActive, setDragActive] = useState(false);
@@ -100,17 +102,20 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
     }
 
     const nameTrimmed = formData.name.trim();
+    const generatedSlug = generateUniqueSlug(
+      nameTrimmed,
+      existingCategories,
+      initialCategory?.id
+    );
+
     const generatedId =
       initialCategory?.id ||
-      nameTrimmed
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-|-$/g, '') ||
+      generatedSlug ||
       `cat-${Date.now()}`;
 
     const completeCategory: Category = {
       id: generatedId,
-      slug: formData.slug || undefined,
+      slug: generatedSlug,
       name: nameTrimmed,
       image: formData.image,
       count: initialCategory?.count || 0,
@@ -201,18 +206,6 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
               value={formData.name || ''}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               placeholder="e.g. Lighting, Recliners, Bookshelves"
-              className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-gray-900 focus:outline-none focus:border-[#E11D2A] focus:ring-1 focus:ring-[#E11D2A]"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-              URL Slug (Optional)
-            </label>
-            <input
-              type="text"
-              value={formData.slug || ''}
-              onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
-              placeholder="e.g. lighting"
               className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-gray-900 focus:outline-none focus:border-[#E11D2A] focus:ring-1 focus:ring-[#E11D2A]"
             />
           </div>

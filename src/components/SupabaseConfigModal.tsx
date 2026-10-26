@@ -1,7 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Database, CheckCircle2, AlertCircle, X, ExternalLink, Key, Link2, ShieldCheck, RefreshCw } from 'lucide-react';
-import { getSupabaseUrl, getSupabaseAnonKey, saveSupabaseCredentials, isSupabaseConfigured, supabase } from '../lib/supabase';
-import { runDatabaseHealthCheck } from '../lib/data';
+import {
+  getSupabaseUrl,
+  getSupabaseAnonKey,
+  saveSupabaseCredentials,
+  isSupabaseConfigured,
+  runDatabaseHealthCheck,
+} from '../lib/data';
 
 interface SupabaseConfigModalProps {
   isOpen: boolean;

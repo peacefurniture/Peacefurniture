@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Plus,
   Search,
@@ -17,19 +17,15 @@ import {
   RotateCcw,
   ArrowUp,
   ArrowDown,
-  Activity,
   Check,
   X,
-  Copy,
 } from 'lucide-react';
 import { Category, FurnitureItem } from '../types';
 import { HomeCraftLogo } from './HomeCraftLogo';
 import { NICHE_CONFIG } from '../config/niche';
 import { SupabaseConfigModal } from './SupabaseConfigModal';
-import { isSupabaseConfigured, getSupabaseUrl } from '../lib/supabase';
 import {
-  runDatabaseHealthCheck,
-  HealthCheckResult,
+  isSupabaseConfigured,
   restoreItem,
   restoreGroup,
   purgeItemPermanently,
@@ -68,7 +64,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   lastSyncedAt,
   onGoToStore,
 }) => {
-  const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'trash' | 'health'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'trash'>('products');
   const [searchTerm, setSearchTerm] = useState('');
   const [categorySearchTerm, setCategorySearchTerm] = useState('');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
@@ -76,30 +72,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [categoryVisibilityFilter, setCategoryVisibilityFilter] = useState<'all' | 'active' | 'hidden'>('all');
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [deleteCategoryConfirmId, setDeleteCategoryConfirmId] = useState<string | null>(null);
-
-  // Health Diagnostics State
-  const [healthResult, setHealthResult] = useState<HealthCheckResult | null>(null);
-  const [isHealthCheckLoading, setIsHealthCheckLoading] = useState(false);
-  const [copiedSql, setCopiedSql] = useState(false);
-
-  // Run Health Check when opening health tab
-  const handleRunHealthCheck = async () => {
-    setIsHealthCheckLoading(true);
-    try {
-      const res = await runDatabaseHealthCheck();
-      setHealthResult(res);
-    } catch {
-      // ignore
-    } finally {
-      setIsHealthCheckLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (activeTab === 'health') {
-      handleRunHealthCheck();
-    }
-  }, [activeTab]);
 
   // Labels from config
   const labels = NICHE_CONFIG.labels;
@@ -164,83 +136,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
   }, [nonDeletedProducts, searchTerm, selectedCategoryFilter, visibilityFilter]);
 
 
-  const copySqlSchema = () => {
-    const sql = `
--- 1. TABLES & COLUMNS (Hardened)
-CREATE TABLE IF NOT EXISTS categories (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  slug TEXT UNIQUE,
-  name TEXT NOT NULL,
-  image TEXT,
-  item_count INT DEFAULT 0,
-  active BOOLEAN DEFAULT true,
-  deleted_at TIMESTAMPTZ DEFAULT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Ensure image column exists if table was created without it
-ALTER TABLE categories ADD COLUMN IF NOT EXISTS image TEXT;
-ALTER TABLE categories ADD COLUMN IF NOT EXISTS item_count INT DEFAULT 0;
-ALTER TABLE categories ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT true;
-ALTER TABLE categories ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ DEFAULT NULL;
-
-CREATE TABLE IF NOT EXISTS items (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  slug TEXT UNIQUE,
-  name TEXT NOT NULL,
-  category_id UUID REFERENCES categories(id) ON DELETE SET NULL,
-  price NUMERIC DEFAULT 0,
-  original_price NUMERIC,
-  description TEXT,
-  image TEXT,
-  active BOOLEAN DEFAULT true,
-  deleted_at TIMESTAMPTZ DEFAULT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Ensure columns exist
-ALTER TABLE items ADD COLUMN IF NOT EXISTS image TEXT;
-ALTER TABLE items ADD COLUMN IF NOT EXISTS description TEXT;
-ALTER TABLE items ADD COLUMN IF NOT EXISTS price NUMERIC DEFAULT 0;
-ALTER TABLE items ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT true;
-ALTER TABLE items ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ DEFAULT NULL;
-
--- 2. ROW LEVEL SECURITY & POLICIES
-ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
-ALTER TABLE items ENABLE ROW LEVEL SECURITY;
-
--- Allow public read (Including SELECT policies)
-DROP POLICY IF EXISTS "Public Read Categories" ON categories;
-CREATE POLICY "Public Read Categories" ON categories FOR SELECT USING (true);
-
-DROP POLICY IF EXISTS "Public Read Items" ON items;
-CREATE POLICY "Public Read Items" ON items FOR SELECT USING (true);
-
--- Allow authenticated write (Admin)
-DROP POLICY IF EXISTS "Admin All Categories" ON categories;
-CREATE POLICY "Admin All Categories" ON categories FOR ALL TO authenticated USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Admin All Items" ON items;
-CREATE POLICY "Admin All Items" ON items FOR ALL TO authenticated USING (true) WITH CHECK (true);
-
--- 3. STORAGE BUCKET POLICIES (Required for image uploads)
--- Create bucket 'Images' in Supabase Dashboard first!
--- CREATE POLICY "Public Access" ON storage.objects FOR SELECT USING (bucket_id = 'Images');
--- CREATE POLICY "Authenticated Upload" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'Images');
-
--- 4. RELOAD SCHEMA
-NOTIFY pgrst, 'reload schema';
-    `;
-    navigator.clipboard.writeText(sql);
-    setCopiedSql(true);
-    setTimeout(() => setCopiedSql(false), 2500);
-  };
-
   const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
   const isConnected = isSupabaseConfigured();
-  const currentUrl = getSupabaseUrl();
 
   return (
     <div className="min-h-screen bg-[#F5F6F8] text-gray-900 pb-24 sm:pb-16 font-['Plus_Jakarta_Sans',sans-serif]">
@@ -288,53 +185,6 @@ NOTIFY pgrst, 'reload schema';
 
       {/* Main Admin Dashboard Body */}
       <div className="max-w-7xl mx-auto px-3 sm:px-6 pt-4 sm:pt-6">
-        {/* Supabase Status Banner */}
-        <div
-          className={`mb-6 p-4 rounded-2xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs ${
-            isConnected
-              ? 'bg-emerald-50/80 border-emerald-200 text-emerald-950'
-              : 'bg-amber-50/90 border-amber-200/90 text-amber-950'
-          }`}
-        >
-          <div className="flex items-center gap-3">
-            <div
-              className={`p-2.5 rounded-xl ${
-                isConnected ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'
-              }`}
-            >
-              <Database className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-black text-sm">
-                  {isConnected ? 'Supabase Live Database Active' : 'Running in Local Memory Mode'}
-                </span>
-                <span
-                  className={`w-2.5 h-2.5 rounded-full animate-pulse ${
-                    isConnected ? 'bg-emerald-500' : 'bg-amber-500'
-                  }`}
-                />
-              </div>
-              <p className="text-xs text-gray-600 mt-0.5">
-                {isConnected
-                  ? `Connected to Supabase project: ${currentUrl}`
-                  : 'Edits are storing in browser local memory because Supabase URL/Key are not set yet.'}
-              </p>
-            </div>
-          </div>
-
-          <button
-            onClick={() => setIsSupabaseModalOpen(true)}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shadow-xs ${
-              isConnected
-                ? 'bg-emerald-700 hover:bg-emerald-800 text-white'
-                : 'bg-amber-800 hover:bg-amber-900 text-white'
-            }`}
-          >
-            {isConnected ? 'Manage Supabase Keys' : '⚡ Connect Supabase Now'}
-          </button>
-        </div>
-
         {/* Top Header Section */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <div>
@@ -424,18 +274,6 @@ NOTIFY pgrst, 'reload schema';
           >
             <Trash2 className="w-4 h-4" />
             <span>Trash ({trashedItems.length + trashedCategories.length})</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('health')}
-            className={`pb-3 px-4 font-bold text-xs sm:text-sm flex items-center gap-2 transition-colors cursor-pointer border-b-2 whitespace-nowrap ${
-              activeTab === 'health'
-                ? 'border-[#E11D2A] text-[#E11D2A]'
-                : 'border-transparent text-gray-500 hover:text-gray-900'
-            }`}
-          >
-            <Activity className="w-4 h-4 text-emerald-500" />
-            <span>DB Health Diagnostic</span>
           </button>
         </div>
 
@@ -729,92 +567,6 @@ NOTIFY pgrst, 'reload schema';
           </div>
         )}
 
-        {/* TAB 4: DATABASE HEALTH DIAGNOSTICS */}
-        {activeTab === 'health' && (
-          <div className="space-y-6">
-            <div className="bg-white rounded-2xl border border-gray-200/80 shadow-xs p-5 sm:p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="font-extrabold text-base text-gray-900">Supabase Database Health Check</h3>
-                  <p className="text-xs text-gray-500">Live inspection of groups, items, schema columns, foreign keys & RLS policies.</p>
-                </div>
-                <button
-                  onClick={handleRunHealthCheck}
-                  disabled={isHealthCheckLoading}
-                  className="bg-gray-900 hover:bg-black text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer"
-                >
-                  <Activity className={`w-4 h-4 ${isHealthCheckLoading ? 'animate-spin' : ''}`} />
-                  <span>Re-test Connection</span>
-                </button>
-              </div>
-
-              {healthResult ? (
-                <div className="space-y-4">
-                  <div className={`p-4 rounded-xl border flex items-center justify-between ${
-                    healthResult.ok ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-red-50 border-red-200 text-red-900'
-                  }`}>
-                    <div className="flex items-center gap-3">
-                      {healthResult.ok ? (
-                        <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
-                      ) : (
-                        <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0" />
-                      )}
-                      <div>
-                        <span className="font-extrabold text-xs sm:text-sm block">
-                          {healthResult.ok ? 'Database is Healthy & Fully Connected' : 'Schema or Permission Warnings Found'}
-                        </span>
-                        <span className="text-[11px] opacity-80">
-                          {healthResult.isConfigured ? `Connected to: ${healthResult.supabaseUrl}` : 'Using local fallback memory mode.'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Individual Diagnostic Checks */}
-                  <div className="space-y-3">
-                    {healthResult.checks.map((chk, i) => (
-                      <div key={i} className="p-3.5 border border-gray-200 rounded-xl bg-gray-50/50 flex flex-col gap-2">
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-xs text-gray-800">{chk.name}</span>
-                          <span className={`px-2 py-0.5 text-[10px] font-extrabold rounded-full ${
-                            chk.status === 'pass' ? 'bg-emerald-100 text-emerald-700' : chk.status === 'fail' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
-                          }`}>
-                            {chk.status.toUpperCase()}
-                          </span>
-                        </div>
-                        <p className="text-xs text-gray-600">{chk.message}</p>
-                        {chk.sqlFix && (
-                          <div className="mt-1 p-2 bg-gray-900 text-emerald-400 font-mono text-[11px] rounded-lg overflow-x-auto">
-                            <code>{chk.sqlFix}</code>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* One-Click SQL Fix Button */}
-                  <div className="p-4 bg-gray-900 text-white rounded-2xl space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-emerald-400">One-Click Fix: Idempotent Supabase SQL Schema</span>
-                      <button
-                        onClick={copySqlSchema}
-                        className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer"
-                      >
-                        {copiedSql ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                        <span>{copiedSql ? 'Copied to Clipboard!' : 'Copy Fix SQL'}</span>
-                      </button>
-                    </div>
-                    <p className="text-[11px] text-gray-400">
-                      Copy and run this single script in your Supabase SQL Editor. It creates `groups`, `items`, foreign keys, and RLS policies idempotently.
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-xs text-gray-400 py-6 text-center">Testing Supabase connection and schema health...</p>
-              )}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Supabase Connection & Credentials Modal */}

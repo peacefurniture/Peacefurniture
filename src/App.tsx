@@ -11,7 +11,6 @@ import { NavDrawer } from './components/NavDrawer';
 import { ImageSearchModal } from './components/ImageSearchModal';
 import { Footer } from './components/Footer';
 import { Home, Search, ShieldCheck, CheckCircle2, AlertCircle } from 'lucide-react';
-import { isSupabaseConfigured, supabase } from './lib/supabase';
 import {
   CategoryId,
   FurnitureItem,
@@ -31,6 +30,10 @@ import {
   mapDBGroupToCategory,
   mapFurnitureItemToDBItem,
   mapCategoryToDBGroup,
+  isSupabaseConfigured,
+  getAdminSession,
+  onAuthChange,
+  generateUniqueSlug,
 } from './lib/data';
 import { NICHE_CONFIG } from './config/niche';
 import { AdminLogin } from './components/AdminLogin';
@@ -70,21 +73,23 @@ export default function App() {
     loadData();
   }, []);
 
-  // Auth state
+  // Auth state using backend service from src/lib/data.ts
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    getAdminSession().then(({ session }) => {
       setIsAuthenticated(!!session);
     });
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    const subscription = onAuthChange((_event, session) => {
       setIsAuthenticated(!!session);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      if (subscription && typeof subscription.unsubscribe === 'function') {
+        subscription.unsubscribe();
+      }
+    };
   }, []);
 
   const isConfigured = isSupabaseConfigured();
@@ -209,11 +214,12 @@ export default function App() {
   // Add or Edit Product
   const handleSaveProduct = async (product: FurnitureItem) => {
     const isEdit = Boolean(editingAdminProduct);
+    const resolvedSlug = product.slug || generateUniqueSlug(product.name, products, product.id);
     try {
       await saveItem({
         id: product.id,
         name: product.name,
-        slug: product.slug,
+        slug: resolvedSlug,
         category_id: product.category,
         price: product.price,
         description: product.description,
@@ -279,11 +285,12 @@ export default function App() {
 
   const handleSaveCategory = async (category: Category) => {
     const isEdit = Boolean(editingAdminCategory);
+    const resolvedSlug = category.slug || generateUniqueSlug(category.name, categories, category.id);
     try {
       await saveGroup({
         id: category.id,
         name: category.name,
-        slug: category.slug,
+        slug: resolvedSlug,
         image: category.image || '',
         active: category.isActive !== false,
       });
@@ -514,6 +521,7 @@ export default function App() {
         onSave={handleSaveProduct}
         initialProduct={editingAdminProduct}
         categories={categories}
+        existingProducts={products}
       />
 
       {/* Admin Add/Edit Category Modal */}
@@ -525,6 +533,7 @@ export default function App() {
         }}
         onSave={handleSaveCategory}
         initialCategory={editingAdminCategory}
+        existingCategories={categories}
       />
 
       {/* Customer Product Details Modal */}
