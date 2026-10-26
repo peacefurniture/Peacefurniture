@@ -211,13 +211,13 @@ export default function App() {
         id: product.id,
         name: product.name,
         slug: product.slug,
-        group_id: product.category,
+        category_id: product.category,
         price: product.price,
         original_price: product.originalPrice,
         description: product.description,
         image: product.image,
         additional_images: product.additionalImages,
-        available: product.isActive !== false,
+        active: product.isActive !== false,
         attributes: {
           longDescription: product.longDescription,
           dimensions: product.dimensions,
@@ -264,8 +264,8 @@ export default function App() {
       await saveItem({
         id: target.id,
         name: target.name,
-        group_id: target.category,
-        available: newStatus,
+        category_id: target.category,
+        active: newStatus,
       });
 
       await loadData();
@@ -294,7 +294,7 @@ export default function App() {
         name: category.name,
         slug: category.slug,
         image: category.image,
-        available: category.isActive !== false,
+        active: category.isActive !== false,
       });
 
       await loadData();
@@ -332,7 +332,7 @@ export default function App() {
       await saveGroup({
         id: target.id,
         name: target.name,
-        available: newStatus,
+        active: newStatus,
       });
 
       await loadData();

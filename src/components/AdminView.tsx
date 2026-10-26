@@ -198,13 +198,14 @@ export const AdminView: React.FC<AdminViewProps> = ({
 -- COPY THIS INTO YOUR SUPABASE SQL EDITOR TO FIX ALL TABLES, COLUMNS & RLS POLICIES:
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
-CREATE TABLE IF NOT EXISTS groups (
+CREATE TABLE IF NOT EXISTS categories (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   slug TEXT UNIQUE,
   name TEXT NOT NULL,
   image TEXT,
   sort_order INT DEFAULT 0,
-  available BOOLEAN DEFAULT true,
+  active BOOLEAN DEFAULT true,
+  item_count INT DEFAULT 0,
   attributes JSONB DEFAULT '{}'::jsonb,
   deleted_at TIMESTAMPTZ DEFAULT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -215,7 +216,7 @@ CREATE TABLE IF NOT EXISTS items (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   slug TEXT UNIQUE,
   name TEXT NOT NULL,
-  group_id UUID REFERENCES groups(id) ON DELETE SET NULL,
+  category_id UUID REFERENCES categories(id) ON DELETE SET NULL,
   price NUMERIC DEFAULT 0,
   original_price NUMERIC,
   description TEXT,
@@ -223,17 +224,44 @@ CREATE TABLE IF NOT EXISTS items (
   additional_images TEXT[] DEFAULT '{}'::text[],
   attributes JSONB DEFAULT '{}'::jsonb,
   sort_order INT DEFAULT 0,
-  available BOOLEAN DEFAULT true,
+  active BOOLEAN DEFAULT true,
   deleted_at TIMESTAMPTZ DEFAULT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-ALTER TABLE groups ENABLE ROW LEVEL SECURITY;
+-- Trigger to auto-update item_count in categories
+CREATE OR REPLACE FUNCTION update_category_item_count()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF (TG_OP = 'INSERT') THEN
+    UPDATE categories SET item_count = item_count + 1 WHERE id = NEW.category_id;
+  ELSIF (TG_OP = 'DELETE') THEN
+    UPDATE categories SET item_count = item_count - 1 WHERE id = OLD.category_id;
+  ELSIF (TG_OP = 'UPDATE') THEN
+    IF (OLD.category_id IS DISTINCT FROM NEW.category_id) THEN
+      IF (OLD.category_id IS NOT NULL) THEN
+        UPDATE categories SET item_count = item_count - 1 WHERE id = OLD.category_id;
+      END IF;
+      IF (NEW.category_id IS NOT NULL) THEN
+        UPDATE categories SET item_count = item_count + 1 WHERE id = NEW.category_id;
+      END IF;
+    END IF;
+  END IF;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_update_category_item_count ON items;
+CREATE TRIGGER trg_update_category_item_count
+AFTER INSERT OR DELETE OR UPDATE OF category_id ON items
+FOR EACH ROW EXECUTE FUNCTION update_category_item_count();
+
+ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE items ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Public write groups" ON groups;
-CREATE POLICY "Public write groups" ON groups FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Public write categories" ON categories;
+CREATE POLICY "Public write categories" ON categories FOR ALL USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Public write items" ON items;
 CREATE POLICY "Public write items" ON items FOR ALL USING (true) WITH CHECK (true);

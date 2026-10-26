@@ -8,7 +8,7 @@ export interface DBGroup {
   name: string;
   image?: string;
   sort_order: number;
-  available: boolean;
+  active: boolean;
   item_count?: number;
   attributes: Record<string, any>;
   deleted_at?: string | null;
@@ -20,7 +20,7 @@ export interface DBItem {
   id: string; // UUID or string key
   slug: string;
   name: string;
-  group_id: string | null;
+  category_id: string | null;
   price: number;
   original_price?: number;
   description: string;
@@ -28,7 +28,7 @@ export interface DBItem {
   additional_images?: string[];
   attributes: Record<string, any>;
   sort_order: number;
-  available: boolean;
+  active: boolean;
   deleted_at?: string | null;
   created_at?: string;
   updated_at?: string;
@@ -44,7 +44,7 @@ export interface DBPromotion {
   autoplay: boolean;
   attributes: Record<string, any>;
   sort_order: number;
-  available: boolean;
+  active: boolean;
   deleted_at?: string | null;
   created_at?: string;
   updated_at?: string;
@@ -92,11 +92,11 @@ export function parseSupabaseError(error: any): Error {
   if (code === 'PGRST204' || code === '42703') {
     userFriendlyHint = 'Missing column in database table. Please run the provided schema.sql in Supabase SQL Editor.';
   } else if (code === 'PGRST205' || code === '42P01') {
-    userFriendlyHint = 'Table does not exist in database. Please run schema.sql to create the groups, items, promotions tables.';
+    userFriendlyHint = 'Table does not exist in database. Please run schema.sql to create the categories, items, promotions tables.';
   } else if (code === '42501') {
     userFriendlyHint = 'Row Level Security (RLS) blocked this operation. Ensure public RLS policies are enabled in Supabase.';
   } else if (code === '23503') {
-    userFriendlyHint = 'Foreign key error: referenced group/category does not exist in the database.';
+    userFriendlyHint = 'Foreign key error: referenced category does not exist in the database.';
   }
 
   const fullMessage = [
@@ -124,7 +124,7 @@ export function isUUID(str: string): boolean {
 
 /**
  * Reference Resolver: Maps any string category ID (e.g., 'sofas', 'beds', 'cat-1')
- * or slug to a real database UUID in `groups`.
+ * or slug to a real database UUID in `categories`.
  */
 export async function resolveGroupUuid(groupIdOrSlug: string | null): Promise<string | null> {
   if (!groupIdOrSlug || groupIdOrSlug === 'all') return null;
@@ -141,7 +141,7 @@ export async function resolveGroupUuid(groupIdOrSlug: string | null): Promise<st
   if (isSupabaseConfigured()) {
     try {
       const { data, error } = await supabase
-        .from('groups')
+        .from('categories')
         .select('id, slug, name')
         .or(`slug.eq.${groupIdOrSlug},name.ilike.${groupIdOrSlug}`)
         .limit(1);
@@ -159,11 +159,11 @@ export async function resolveGroupUuid(groupIdOrSlug: string | null): Promise<st
     try {
       const groupName = groupIdOrSlug.replace(/[-_]/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
       const { data: newGroup, error: createErr } = await supabase
-        .from('groups')
+        .from('categories')
         .insert({
           name: groupName,
           slug: groupIdOrSlug.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-          available: true,
+          active: true,
           sort_order: 0,
         })
         .select()
@@ -174,11 +174,11 @@ export async function resolveGroupUuid(groupIdOrSlug: string | null): Promise<st
         return newGroup.id;
       }
     } catch (err) {
-      console.warn('Could not auto-create missing group in DB:', err);
+      console.warn('Could not auto-create missing category in DB:', err);
     }
   }
 
-  throw new Error(`Group not found: ${groupIdOrSlug}`);
+  throw new Error(`Category not found: ${groupIdOrSlug}`);
 }
 
 // ============================================================================
@@ -193,7 +193,7 @@ export async function fetchGroups(includeDeleted = false): Promise<DBGroup[]> {
     throw new Error('Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
   }
 
-  let query = supabase.from('groups').select('*').order('sort_order', { ascending: true });
+  let query = supabase.from('categories').select('*').order('sort_order', { ascending: true });
   if (!includeDeleted) {
     query = query.is('deleted_at', null);
   }
@@ -206,7 +206,7 @@ export async function fetchGroups(includeDeleted = false): Promise<DBGroup[]> {
     name: g.name,
     image: g.image,
     sort_order: g.sort_order ?? 0,
-    available: g.available ?? true,
+    active: g.active ?? true,
     item_count: g.item_count ?? 0,
     attributes: g.attributes || {},
     deleted_at: g.deleted_at,
@@ -231,7 +231,7 @@ export async function saveGroup(group: Partial<DBGroup>): Promise<{ data: DBGrou
       slug,
       image: group.image || '',
       sort_order: group.sort_order ?? 0,
-      available: group.available ?? true,
+      active: group.active ?? true,
       attributes: group.attributes || {},
       deleted_at: null,
       updated_at: new Date().toISOString(),
@@ -242,7 +242,7 @@ export async function saveGroup(group: Partial<DBGroup>): Promise<{ data: DBGrou
     }
 
     const { data, error } = await supabase
-      .from('groups')
+      .from('categories')
       .upsert(payload, { onConflict: payload.id ? 'id' : 'slug' })
       .select()
       .single();
@@ -274,7 +274,7 @@ export async function fetchItems(includeDeleted = false): Promise<DBItem[]> {
     id: item.id,
     slug: item.slug || item.id,
     name: item.name,
-    group_id: item.group_id,
+    category_id: item.category_id,
     price: Number(item.price) || 0,
     original_price: item.original_price ? Number(item.original_price) : undefined,
     description: item.description || '',
@@ -282,7 +282,7 @@ export async function fetchItems(includeDeleted = false): Promise<DBItem[]> {
     additional_images: item.additional_images || [],
     attributes: item.attributes || {},
     sort_order: item.sort_order ?? 0,
-    available: item.available ?? true,
+    active: item.active ?? true,
     deleted_at: item.deleted_at,
     created_at: item.created_at,
   }));
@@ -297,8 +297,8 @@ export async function saveItem(item: Partial<DBItem>): Promise<{ data: DBItem; i
   }
 
   return serializeWrite(async () => {
-    // Resolve group_id UUID
-    const resolvedGroupUuid = await resolveGroupUuid(item.group_id || null);
+    // Resolve category_id UUID
+    const resolvedGroupUuid = await resolveGroupUuid(item.category_id || null);
 
     const name = item.name || 'Untitled Item';
     const slug = item.slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
@@ -306,7 +306,7 @@ export async function saveItem(item: Partial<DBItem>): Promise<{ data: DBItem; i
     const payload: any = {
       name,
       slug,
-      group_id: resolvedGroupUuid,
+      category_id: resolvedGroupUuid,
       price: Number(item.price) || 0,
       original_price: item.original_price ? Number(item.original_price) : undefined,
       description: item.description || '',
@@ -314,7 +314,7 @@ export async function saveItem(item: Partial<DBItem>): Promise<{ data: DBItem; i
       additional_images: item.additional_images || [],
       attributes: item.attributes || {},
       sort_order: item.sort_order ?? 0,
-      available: item.available ?? true,
+      active: item.active ?? true,
       deleted_at: null,
       updated_at: new Date().toISOString(),
     };
@@ -357,7 +357,7 @@ export async function softDeleteGroup(id: string): Promise<boolean> {
   if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
   
   const deletedAt = new Date().toISOString();
-  const { error } = await supabase.from('groups').update({ deleted_at: deletedAt }).eq('id', id);
+  const { error } = await supabase.from('categories').update({ deleted_at: deletedAt }).eq('id', id);
   if (error) throw parseSupabaseError(error);
 
   return true;
@@ -381,7 +381,7 @@ export async function restoreItem(id: string): Promise<boolean> {
 export async function restoreGroup(id: string): Promise<boolean> {
   if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
   
-  const { error } = await supabase.from('groups').update({ deleted_at: null }).eq('id', id);
+  const { error } = await supabase.from('categories').update({ deleted_at: null }).eq('id', id);
   if (error) throw parseSupabaseError(error);
 
   return true;
@@ -448,7 +448,7 @@ export async function reorderGroups(orderedIds: string[]): Promise<boolean> {
   if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
   
   for (const [index, id] of orderedIds.entries()) {
-    const { error } = await supabase.from('groups').update({ sort_order: index + 1 }).eq('id', id);
+    const { error } = await supabase.from('categories').update({ sort_order: index + 1 }).eq('id', id);
     if (error) throw parseSupabaseError(error);
   }
 
@@ -480,28 +480,28 @@ export async function runDatabaseHealthCheck(): Promise<HealthCheckResult> {
     return result;
   }
 
-  // Check 1: Groups Table
+  // Check 1: Categories Table
   try {
-    const { error: groupsErr } = await supabase.from('groups').select('id, name, slug, sort_order, attributes, deleted_at').limit(1);
+    const { error: groupsErr } = await supabase.from('categories').select('id, name, slug, sort_order, attributes, deleted_at').limit(1);
     if (groupsErr) {
       result.ok = false;
       result.checks.push({
-        name: 'Table: groups',
+        name: 'Table: categories',
         status: 'fail',
-        message: `Error checking "groups" table: ${groupsErr.message} (Code: ${groupsErr.code})`,
-        sqlFix: 'CREATE TABLE IF NOT EXISTS groups (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), slug TEXT, name TEXT NOT NULL, sort_order INT DEFAULT 0, available BOOLEAN DEFAULT true, attributes JSONB DEFAULT \'{}\'::jsonb, deleted_at TIMESTAMPTZ);',
+        message: `Error checking "categories" table: ${groupsErr.message} (Code: ${groupsErr.code})`,
+        sqlFix: 'CREATE TABLE IF NOT EXISTS categories (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), slug TEXT, name TEXT NOT NULL, sort_order INT DEFAULT 0, active BOOLEAN DEFAULT true, attributes JSONB DEFAULT \'{}\'::jsonb, deleted_at TIMESTAMPTZ);',
       });
     } else {
       result.checks.push({
-        name: 'Table: groups',
+        name: 'Table: categories',
         status: 'pass',
-        message: 'Table "groups" exists and is queryable with all required columns.',
+        message: 'Table "categories" exists and is queryable with all required columns.',
       });
     }
   } catch (err: any) {
     result.ok = false;
     result.checks.push({
-      name: 'Table: groups',
+      name: 'Table: categories',
       status: 'fail',
       message: err.message || String(err),
     });
@@ -509,20 +509,20 @@ export async function runDatabaseHealthCheck(): Promise<HealthCheckResult> {
 
   // Check 2: Items Table & Foreign Key
   try {
-    const { error: itemsErr } = await supabase.from('items').select('id, name, group_id, price, description, attributes, deleted_at').limit(1);
+    const { error: itemsErr } = await supabase.from('items').select('id, name, category_id, price, description, attributes, deleted_at').limit(1);
     if (itemsErr) {
       result.ok = false;
       result.checks.push({
         name: 'Table: items & Foreign Key',
         status: 'fail',
         message: `Error checking "items" table: ${itemsErr.message} (Code: ${itemsErr.code})`,
-        sqlFix: 'CREATE TABLE IF NOT EXISTS items (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), name TEXT NOT NULL, group_id UUID REFERENCES groups(id) ON DELETE SET NULL, price NUMERIC DEFAULT 0, description TEXT, attributes JSONB DEFAULT \'{}\'::jsonb, deleted_at TIMESTAMPTZ);',
+        sqlFix: 'CREATE TABLE IF NOT EXISTS items (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), name TEXT NOT NULL, category_id UUID REFERENCES categories(id) ON DELETE SET NULL, price NUMERIC DEFAULT 0, description TEXT, attributes JSONB DEFAULT \'{}\'::jsonb, deleted_at TIMESTAMPTZ);',
       });
     } else {
       result.checks.push({
         name: 'Table: items & Foreign Key',
         status: 'pass',
-        message: 'Table "items" exists with group_id foreign key constraint.',
+        message: 'Table "items" exists with category_id foreign key constraint.',
       });
     }
   } catch (err: any) {
@@ -561,14 +561,14 @@ export async function runDatabaseHealthCheck(): Promise<HealthCheckResult> {
   // Check 4: Row Level Security (RLS) Write Permissions Check
   try {
     const testId = '00000000-0000-0000-0000-000000000000';
-    const { error: rlsErr } = await supabase.from('groups').select('id').eq('id', testId);
+    const { error: rlsErr } = await supabase.from('categories').select('id').eq('id', testId);
     if (rlsErr && rlsErr.code === '42501') {
       result.ok = false;
       result.checks.push({
         name: 'Row Level Security (RLS) Policies',
         status: 'fail',
         message: 'RLS policies are restricting access or blocking public operations.',
-        sqlFix: 'ALTER TABLE groups ENABLE ROW LEVEL SECURITY; CREATE POLICY "Public write groups" ON groups FOR ALL USING (true);',
+        sqlFix: 'ALTER TABLE categories ENABLE ROW LEVEL SECURITY; CREATE POLICY "Public write categories" ON categories FOR ALL USING (true);',
       });
     } else {
       result.checks.push({
@@ -594,8 +594,8 @@ export function mapDBItemToFurnitureItem(item: DBItem): FurnitureItem {
     id: item.id,
     slug: item.slug,
     name: item.name,
-    category: (item.group_id as any) || 'all',
-    group_id: item.group_id || undefined,
+    category: (item.category_id as any) || 'all',
+    group_id: item.category_id || undefined,
     price: item.price,
     originalPrice: item.original_price,
     description: item.description,
@@ -609,7 +609,7 @@ export function mapDBItemToFurnitureItem(item: DBItem): FurnitureItem {
     color: item.attributes.color,
     warranty: item.attributes.warranty,
     inStock: item.attributes.inStock ?? true,
-    isActive: item.available,
+    isActive: item.active,
     tags: item.attributes.tags,
     rating: item.attributes.rating || 4.8,
     reviewsCount: item.attributes.reviewsCount || 0,
@@ -624,7 +624,7 @@ export function mapDBGroupToCategory(group: DBGroup): Category {
     slug: group.slug,
     image: group.image || '',
     count: group.item_count || 0,
-    isActive: group.available,
+    isActive: group.active,
     deleted_at: group.deleted_at,
     attributes: group.attributes,
   };
@@ -635,13 +635,13 @@ export function mapFurnitureItemToDBItem(item: FurnitureItem, existingItem: DBIt
     ...existingItem,
     id: item.id,
     name: item.name,
-    group_id: item.category as string,
+    category_id: item.category as string,
     price: item.price,
     original_price: item.originalPrice,
     description: item.description,
     image: item.image,
     additional_images: item.additionalImages,
-    available: item.isActive ?? true,
+    active: item.isActive ?? true,
     attributes: {
       ...existingItem.attributes,
       longDescription: item.longDescription,
@@ -667,7 +667,7 @@ export function mapCategoryToDBGroup(category: Category, existingGroup: DBGroup)
     name: category.name,
     slug: category.slug || existingGroup.slug,
     image: category.image,
-    available: category.isActive ?? true,
+    active: category.isActive ?? true,
     attributes: {
       ...existingGroup.attributes,
     },
