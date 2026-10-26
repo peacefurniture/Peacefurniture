@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Category, CategoryId, FilterState, FurnitureItem } from './types';
-import { CATEGORIES, FURNITURE_ITEMS } from './data/furnitureData';
+// removed types import
+// removed furnitureData import
 import { Header } from './components/Header';
 import { HomeView } from './components/HomeView';
 import { SearchView } from './components/SearchView';
@@ -21,7 +21,6 @@ import {
   saveGroup,
   softDeleteItem,
   softDeleteGroup,
-  seedLocalMemory,
   DBItem,
   DBGroup,
 } from './lib/data';
@@ -32,8 +31,8 @@ export default function App() {
   const [currentView, setCurrentView] = useState<'home' | 'search' | 'admin'>('home');
 
   // Master State
-  const [products, setProducts] = useState<FurnitureItem[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [items, setItems] = useState<DBItem[]>([]);
+  const [groups, setGroups] = useState<DBGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Database Sync State
@@ -48,114 +47,18 @@ export default function App() {
 
   const isConfigured = isSupabaseConfigured();
 
-  // Seed default data & load initial state from unified data layer
+  // Load initial state from unified data layer
   const loadData = async () => {
     setIsLoading(true);
-
-    // Map default furniture data to generic memory seed
-    const seedGroups: DBGroup[] = CATEGORIES.map((c, i) => ({
-      id: c.id,
-      slug: c.id,
-      name: c.name,
-      image: c.image,
-      sort_order: i + 1,
-      available: c.isActive !== false,
-      attributes: {},
-    }));
-
-    const seedItems: DBItem[] = FURNITURE_ITEMS.map((item, i) => ({
-      id: item.id,
-      slug: item.id,
-      name: item.name,
-      group_id: item.category,
-      price: item.price,
-      original_price: item.originalPrice,
-      description: item.description,
-      image: item.image,
-      additional_images: item.additionalImages || [],
-      sort_order: i + 1,
-      available: item.isActive !== false,
-      attributes: {
-        longDescription: item.longDescription,
-        dimensions: item.dimensions,
-        material: item.material,
-        finish: item.finish,
-        seatingCapacity: item.seatingCapacity,
-        color: item.color,
-        warranty: item.warranty,
-        isPopular: item.isPopular,
-        inStock: item.inStock,
-        tags: item.tags,
-      },
-    }));
-
-    seedLocalMemory(seedGroups, seedItems);
-
     try {
       const [fetchedGroups, fetchedItems] = await Promise.all([
         fetchGroups(false),
         fetchItems(false),
       ]);
-
-      if (fetchedGroups.length > 0) {
-        const mappedCats: Category[] = fetchedGroups.map((g) => ({
-          id: g.id as CategoryId,
-          name: g.name,
-          image: g.image || 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=300&q=80',
-          count: 0,
-          isActive: g.available,
-          sort_order: g.sort_order,
-          deleted_at: g.deleted_at,
-        }));
-
-        // Ensure default 'all' category is present
-        if (!mappedCats.some((c) => c.id === 'all')) {
-          mappedCats.unshift({
-            id: 'all',
-            name: 'All',
-            image: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=300&q=80',
-            count: fetchedItems.length,
-            isActive: true,
-          });
-        }
-        setCategories(mappedCats);
-      } else {
-        setCategories(CATEGORIES);
-      }
-
-      if (fetchedItems.length > 0) {
-        const mappedItems: FurnitureItem[] = fetchedItems.map((item) => ({
-          id: item.id,
-          name: item.name,
-          category: (item.group_id || 'dining') as CategoryId,
-          price: item.price,
-          originalPrice: item.original_price,
-          description: item.description,
-          longDescription: item.attributes?.longDescription || item.description,
-          image: item.image,
-          additionalImages: item.additional_images,
-          dimensions: item.attributes?.dimensions || { width: '48"', depth: '24"', height: '30"' },
-          material: item.attributes?.material || 'Solid Wood',
-          finish: item.attributes?.finish || 'Natural Finish',
-          seatingCapacity: item.attributes?.seatingCapacity,
-          color: item.attributes?.color || 'Natural',
-          rating: item.attributes?.rating || 4.8,
-          reviewsCount: item.attributes?.reviewsCount || 10,
-          inStock: item.available && (item.attributes?.inStock ?? true),
-          isActive: item.available,
-          warranty: item.attributes?.warranty || '5 Years Warranty',
-          tags: item.attributes?.tags || ['furniture'],
-          deleted_at: item.deleted_at,
-          sort_order: item.sort_order,
-        }));
-        setProducts(mappedItems);
-      } else {
-        setProducts(FURNITURE_ITEMS.map((item) => ({ ...item, isActive: true })));
-      }
+      setGroups(fetchedGroups);
+      setItems(fetchedItems);
     } catch (err) {
-      console.warn('Error loading via data layer, fallback to initial seed:', err);
-      setCategories(CATEGORIES);
-      setProducts(FURNITURE_ITEMS.map((item) => ({ ...item, isActive: true })));
+      console.warn('Error loading data:', err);
     } finally {
       setIsLoading(false);
     }
@@ -171,42 +74,15 @@ export default function App() {
       let savedCount = 0;
       let isCloudSynced = false;
 
-      // Save all categories
-      for (const cat of categories) {
-        if (cat.id === 'all') continue;
-        const res = await saveGroup({
-          id: cat.id,
-          name: cat.name,
-          image: cat.image,
-          available: cat.isActive !== false,
-        });
+      // Save all groups
+      for (const group of groups) {
+        const res = await saveGroup(group);
         if (res.isSupabaseSynced) isCloudSynced = true;
       }
 
-      // Save all products
-      for (const prod of products) {
-        const res = await saveItem({
-          id: prod.id,
-          name: prod.name,
-          group_id: prod.category,
-          price: prod.price,
-          original_price: prod.originalPrice,
-          description: prod.description,
-          image: prod.image,
-          additional_images: prod.additionalImages,
-          available: prod.isActive !== false,
-          attributes: {
-            longDescription: prod.longDescription,
-            dimensions: prod.dimensions,
-            material: prod.material,
-            finish: prod.finish,
-            seatingCapacity: prod.seatingCapacity,
-            color: prod.color,
-            warranty: prod.warranty,
-            inStock: prod.inStock,
-            tags: prod.tags,
-          },
-        });
+      // Save all items
+      for (const item of items) {
+        const res = await saveItem(item);
         if (res.isSupabaseSynced) isCloudSynced = true;
         savedCount++;
       }
@@ -222,7 +98,7 @@ export default function App() {
       if (isCloudSynced) {
         showToast(`✅ Saved ${savedCount} items to Supabase Cloud Database!`);
       } else {
-        showToast(`Stored ${savedCount} items in Local Memory (Add Supabase URL to sync to cloud)`);
+        showToast(`Stored ${savedCount} items in Local Memory`);
       }
     } catch (err: any) {
       showToast(`Sync Notice: ${err.message || 'Saved locally'}`);
