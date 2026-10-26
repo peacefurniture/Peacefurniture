@@ -106,6 +106,7 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
 
     const completeCategory: Category = {
       id: generatedId,
+      slug: formData.slug || undefined,
       name: nameTrimmed,
       image: formData.image,
       count: initialCategory?.count || 0,
@@ -196,6 +197,18 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
               value={formData.name || ''}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               placeholder="e.g. Lighting, Recliners, Bookshelves"
+              className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-gray-900 focus:outline-none focus:border-[#E11D2A] focus:ring-1 focus:ring-[#E11D2A]"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+              URL Slug (Optional)
+            </label>
+            <input
+              type="text"
+              value={formData.slug || ''}
+              onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
+              placeholder="e.g. lighting"
               className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-gray-900 focus:outline-none focus:border-[#E11D2A] focus:ring-1 focus:ring-[#E11D2A]"
             />
           </div>

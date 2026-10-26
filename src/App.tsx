@@ -1,6 +1,4 @@
 import React, { useState, useMemo, useEffect } from 'react';
-// removed types import
-// removed furnitureData import
 import { Header } from './components/Header';
 import { HomeView } from './components/HomeView';
 import { SearchView } from './components/SearchView';
@@ -9,11 +7,11 @@ import { AdminProductModal } from './components/AdminProductModal';
 import { AdminCategoryModal } from './components/AdminCategoryModal';
 import { ProductDetailsModal } from './components/ProductDetailsModal';
 import { FilterModal } from './components/FilterModal';
-import { ImageSearchModal } from './components/ImageSearchModal';
 import { NavDrawer } from './components/NavDrawer';
+import { ImageSearchModal } from './components/ImageSearchModal';
 import { Footer } from './components/Footer';
 import { Home, Search, ShieldCheck, CheckCircle2, AlertCircle } from 'lucide-react';
-import { isSupabaseConfigured } from './lib/supabase';
+import { isSupabaseConfigured, supabase } from './lib/supabase';
 import {
   CategoryId,
   FurnitureItem,
@@ -33,16 +31,12 @@ import {
   mapDBGroupToCategory,
   mapFurnitureItemToDBItem,
   mapCategoryToDBGroup,
-  reorderItems,
-  reorderGroups,
 } from './lib/data';
 import { NICHE_CONFIG } from './config/niche';
+import { AdminLogin } from './components/AdminLogin';
 
 export default function App() {
-  // Navigation: 'home' = Page 1 Catalogue | 'search' = Page 2 Search Furniture | 'admin' = Admin Portal
   const [currentView, setCurrentView] = useState<'home' | 'search' | 'admin'>('home');
-
-  // Master State
   const [items, setItems] = useState<DBItem[]>([]);
   const [groups, setGroups] = useState<DBGroup[]>([]);
   
@@ -51,18 +45,6 @@ export default function App() {
   const categories = useMemo(() => groups.map(mapDBGroupToCategory), [groups]);
   
   const [isLoading, setIsLoading] = useState(true);
-
-  // Database Sync State
-  const [isSyncingToDb, setIsSyncingToDb] = useState(false);
-  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(() => {
-    try {
-      return localStorage.getItem('niche_last_sync') || null;
-    } catch {
-      return null;
-    }
-  });
-
-  const isConfigured = isSupabaseConfigured();
 
   // Load initial state from unified data layer
   const loadData = async () => {
@@ -85,44 +67,24 @@ export default function App() {
     loadData();
   }, []);
 
-  const handleStoreToDatabase = async () => {
-    setIsSyncingToDb(true);
-    try {
-      let savedCount = 0;
-      let isCloudSynced = false;
+  // Auth state
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
-      // Save all groups
-      for (const group of groups) {
-        const res = await saveGroup(group);
-        if (res.isSupabaseSynced) isCloudSynced = true;
-      }
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsAuthenticated(!!session);
+    });
 
-      // Save all items
-      for (const item of items) {
-        const res = await saveItem(item);
-        if (res.isSupabaseSynced) isCloudSynced = true;
-        savedCount++;
-      }
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAuthenticated(!!session);
+    });
 
-      const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      setLastSyncedAt(timestamp);
-      try {
-        localStorage.setItem('niche_last_sync', timestamp);
-      } catch {
-        // ignore
-      }
+    return () => subscription.unsubscribe();
+  }, []);
 
-      if (isCloudSynced) {
-        showToast(`✅ Saved ${savedCount} items to Supabase Cloud Database!`);
-      } else {
-        showToast(`Stored ${savedCount} items in Local Memory`);
-      }
-    } catch (err: any) {
-      showToast(`Sync Notice: ${err.message || 'Saved locally'}`);
-    } finally {
-      setIsSyncingToDb(false);
-    }
-  };
+  const isConfigured = isSupabaseConfigured();
 
   // Toast Notification state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -245,9 +207,10 @@ export default function App() {
   const handleSaveProduct = async (product: FurnitureItem) => {
     const isEdit = Boolean(editingAdminProduct);
     try {
-      const { data, isSupabaseSynced } = await saveItem({
+      await saveItem({
         id: product.id,
         name: product.name,
+        slug: product.slug,
         group_id: product.category,
         price: product.price,
         original_price: product.originalPrice,
@@ -268,21 +231,8 @@ export default function App() {
         },
       });
 
-      setItems((prev) => {
-        const idx = prev.findIndex((p) => p.id === product.id || p.id === data.id);
-        if (idx >= 0) {
-          const next = [...prev];
-          next[idx] = data;
-          return next as DBItem[];
-        }
-        return [data, ...prev] as DBItem[];
-      });
-
-      showToast(
-        isSupabaseSynced
-          ? `✅ ${isEdit ? 'Updated' : 'Added'} "${product.name}" in Supabase DB!`
-          : `Saved "${product.name}" locally`
-      );
+      await loadData();
+      showToast(`✅ ${isEdit ? 'Updated' : 'Added'} "${product.name}" in Supabase DB!`);
     } catch (err: any) {
       showToast(`Error: ${err.message}`);
     }
@@ -296,7 +246,7 @@ export default function App() {
     if (!target) return;
     try {
       await softDeleteItem(productId);
-      setItems((prev) => prev.map((p) => (p.id === productId ? { ...p, deleted_at: new Date().toISOString() } : p)));
+      await loadData();
       showToast(`Moved "${target.name}" to Trash`);
     } catch (err: any) {
       showToast(`Delete Error: ${err.message}`);
@@ -309,7 +259,6 @@ export default function App() {
     if (!target) return;
 
     const newStatus = target.isActive === false ? true : false;
-    const updated = { ...target, isActive: newStatus };
 
     try {
       await saveItem({
@@ -319,7 +268,7 @@ export default function App() {
         available: newStatus,
       });
 
-      setItems((prev) => prev.map((p) => (p.id === productId ? mapFurnitureItemToDBItem(updated, p) : p)));
+      await loadData();
       showToast(newStatus ? `"${target.name}" is now Active` : `"${target.name}" is now Hidden`);
     } catch (err: any) {
       showToast(`Status Error: ${err.message}`);
@@ -340,28 +289,16 @@ export default function App() {
   const handleSaveCategory = async (category: Category) => {
     const isEdit = Boolean(editingAdminCategory);
     try {
-      const { data, isSupabaseSynced } = await saveGroup({
+      await saveGroup({
         id: category.id,
         name: category.name,
+        slug: category.slug,
         image: category.image,
         available: category.isActive !== false,
       });
 
-      setGroups((prev) => {
-        const idx = prev.findIndex((c) => c.id === category.id || c.id === data.id);
-        if (idx >= 0) {
-          const next = [...prev];
-          next[idx] = data;
-          return next as DBGroup[];
-        }
-        return [...prev, data] as DBGroup[];
-      });
-
-      showToast(
-        isSupabaseSynced
-          ? `✅ ${isEdit ? 'Updated' : 'Added'} "${category.name}" in Supabase DB!`
-          : `Saved "${category.name}" locally`
-      );
+      await loadData();
+      showToast(`✅ ${isEdit ? 'Updated' : 'Added'} "${category.name}" in Supabase DB!`);
     } catch (err: any) {
       showToast(`Error: ${err.message}`);
     }
@@ -378,7 +315,7 @@ export default function App() {
 
     try {
       await softDeleteGroup(categoryId);
-      setGroups((prev) => prev.map((c) => (c.id === categoryId ? { ...c, deleted_at: new Date().toISOString() } : c)));
+      await loadData();
       showToast(`Moved category "${catToDelete?.name || categoryId}" to Trash`);
     } catch (err: any) {
       showToast(`Error: ${err.message}`);
@@ -390,7 +327,6 @@ export default function App() {
     if (!target) return;
 
     const newStatus = target.isActive === false ? true : false;
-    const updatedCategory = { ...target, isActive: newStatus };
 
     try {
       await saveGroup({
@@ -399,7 +335,7 @@ export default function App() {
         available: newStatus,
       });
 
-      setGroups((prev) => prev.map((c) => (c.id === categoryId ? mapCategoryToDBGroup(updatedCategory, c) : c)));
+      await loadData();
       showToast(newStatus ? `Category "${target.name}" is now Active` : `Category "${target.name}" is now Hidden`);
     } catch (err: any) {
       showToast(`Error: ${err.message}`);
@@ -454,7 +390,7 @@ export default function App() {
           <div className="flex items-center gap-2 max-w-5xl mx-auto">
             <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
             <span>
-              <strong>Supabase Setup Notice:</strong> <code>VITE_SUPABASE_URL</code> or <code>VITE_SUPABASE_ANON_KEY</code> missing in <code>.env</code>. The app is running with local memory fallback persistence.
+              <strong>Supabase Setup Notice:</strong> <code>VITE_SUPABASE_URL</code> or <code>VITE_SUPABASE_ANON_KEY</code> missing in <code>.env</code>.
             </span>
           </div>
         </div>
@@ -470,22 +406,28 @@ export default function App() {
 
       {/* Conditional Rendering: Admin View vs Store View */}
       {currentView === 'admin' ? (
-        <AdminView
-          products={products}
-          categories={categories}
-          onAddProduct={handleOpenAddProduct}
-          onEditProduct={handleOpenEditProduct}
-          onDeleteProduct={handleDeleteProduct}
-          onToggleActive={handleToggleActiveProduct}
-          onAddCategory={handleOpenAddCategory}
-          onEditCategory={handleOpenEditCategory}
-          onDeleteCategory={handleDeleteCategory}
-          onToggleActiveCategory={handleToggleActiveCategory}
-          onStoreToDatabase={handleStoreToDatabase}
-          isSyncingToDb={isSyncingToDb}
-          lastSyncedAt={lastSyncedAt}
-          onGoToStore={() => setCurrentView('home')}
-        />
+        isAuthenticated === null ? (
+          <div className="min-h-screen flex items-center justify-center">Loading...</div>
+        ) : isAuthenticated ? (
+          <AdminView
+            products={products}
+            categories={categories}
+            onAddProduct={handleOpenAddProduct}
+            onEditProduct={handleOpenEditProduct}
+            onDeleteProduct={handleDeleteProduct}
+            onToggleActive={handleToggleActiveProduct}
+            onAddCategory={handleOpenAddCategory}
+            onEditCategory={handleOpenEditCategory}
+            onDeleteCategory={handleDeleteCategory}
+            onToggleActiveCategory={handleToggleActiveCategory}
+            onStoreToDatabase={loadData}
+            isSyncingToDb={false}
+            lastSyncedAt={null}
+            onGoToStore={() => setCurrentView('home')}
+          />
+        ) : (
+          <AdminLogin onLogin={() => setIsAuthenticated(true)} />
+        )
       ) : (
         <>
           <Header

@@ -1,0 +1,6 @@
+{
+  "summary":  "Proposed database schema for a furniture catalog application. Defines product and category tables and columns necessary for CRUD operations.",
+  "updatedAt":  "2026-10-26T08:08:48.854872585Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

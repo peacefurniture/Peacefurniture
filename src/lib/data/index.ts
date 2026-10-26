@@ -9,6 +9,7 @@ export interface DBGroup {
   image?: string;
   sort_order: number;
   available: boolean;
+  item_count?: number;
   attributes: Record<string, any>;
   deleted_at?: string | null;
   created_at?: string;
@@ -32,6 +33,23 @@ export interface DBItem {
   created_at?: string;
   updated_at?: string;
 }
+
+export interface DBPromotion {
+  id: string;
+  title: string;
+  subtitle?: string;
+  discount_tag?: string;
+  image?: string;
+  link_url?: string;
+  autoplay: boolean;
+  attributes: Record<string, any>;
+  sort_order: number;
+  available: boolean;
+  deleted_at?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface HealthCheckResult {
   ok: boolean;
   isConfigured: boolean;
@@ -189,6 +207,7 @@ export async function fetchGroups(includeDeleted = false): Promise<DBGroup[]> {
     image: g.image,
     sort_order: g.sort_order ?? 0,
     available: g.available ?? true,
+    item_count: g.item_count ?? 0,
     attributes: g.attributes || {},
     deleted_at: g.deleted_at,
     created_at: g.created_at,
@@ -382,7 +401,7 @@ export async function purgeItemPermanently(id: string): Promise<boolean> {
 
 
 /**
- * Reorder Items
+ * Reorder Groups
  */
 export async function reorderItems(orderedIds: string[]): Promise<boolean> {
   if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
@@ -485,6 +504,30 @@ export async function runDatabaseHealthCheck(): Promise<HealthCheckResult> {
     });
   }
 
+  // Check 3: Promotions Table
+  try {
+    const { error: promoErr } = await supabase.from('promotions').select('id, title, subtitle, discount_tag, autoplay, deleted_at').limit(1);
+    if (promoErr) {
+      result.checks.push({
+        name: 'Table: promotions',
+        status: 'warn',
+        message: `Promotions table warning: ${promoErr.message}. Optional for hero banners.`,
+      });
+    } else {
+      result.checks.push({
+        name: 'Table: promotions',
+        status: 'pass',
+        message: 'Table "promotions" exists and is active.',
+      });
+    }
+  } catch (err: any) {
+    result.checks.push({
+      name: 'Table: promotions',
+      status: 'warn',
+      message: err.message || String(err),
+    });
+  }
+
   // Check 4: Row Level Security (RLS) Write Permissions Check
   try {
     const testId = '00000000-0000-0000-0000-000000000000';
@@ -550,7 +593,7 @@ export function mapDBGroupToCategory(group: DBGroup): Category {
     name: group.name,
     slug: group.slug,
     image: group.image || '',
-    count: 0,
+    count: group.item_count || 0,
     isActive: group.available,
     deleted_at: group.deleted_at,
     attributes: group.attributes,
