@@ -75,7 +75,7 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
       setUploadedImageName(file.name);
     } catch (err: any) {
       console.error('Upload Error:', err);
-      setImageError(err.message || 'Failed to upload image. Ensure an "images" bucket exists in Supabase.');
+      setImageError(err.message || 'Failed to upload image. Ensure an "Images" bucket exists in Supabase.');
     } finally {
       setIsUploading(false);
     }

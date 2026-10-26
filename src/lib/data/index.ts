@@ -402,7 +402,7 @@ export async function purgeItemPermanently(id: string): Promise<boolean> {
 /**
  * Upload Image to Supabase Storage Bucket
  */
-export async function uploadImage(file: File, bucket: string = 'images'): Promise<string> {
+export async function uploadImage(file: File, bucket: string = 'Images'): Promise<string> {
   if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
 
   const fileExt = file.name.split('.').pop();

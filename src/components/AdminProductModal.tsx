@@ -120,7 +120,7 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
       setUploadedImageName(file.name);
     } catch (err: any) {
       console.error('Upload Error:', err);
-      setImageError(err.message || 'Failed to upload image to Supabase Storage. Ensure an "images" bucket exists and has public select permissions.');
+      setImageError(err.message || 'Failed to upload image to Supabase Storage. Ensure an "Images" bucket exists and has public select permissions.');
     } finally {
       setIsUploading(false);
     }
