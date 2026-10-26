@@ -33,6 +33,11 @@ export default function App() {
   // Master State
   const [items, setItems] = useState<DBItem[]>([]);
   const [groups, setGroups] = useState<DBGroup[]>([]);
+  
+  // Temporary mapping for compatibility
+  const products = items;
+  const categories = groups;
+  
   const [isLoading, setIsLoading] = useState(true);
 
   // Database Sync State
