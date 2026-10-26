@@ -62,17 +62,8 @@ export interface HealthCheckResult {
   suggestedSql: string;
 }
 
-// In-Memory Storage for Fallback / Offline
-let localGroupsMemory: DBGroup[] = [];
-let localItemsMemory: DBItem[] = [];
-let localPromotionsMemory: DBPromotion[] = [];
-
 // Saved UUID Mapping (Local Key / Slug -> Supabase UUID)
 const idToUuidMap = new Map<string, string>();
-
-// Local Edit Timestamps for Stale State Protection
-let lastLocalWriteTime = 0;
-let hasUnsavedLocalChanges = false;
 
 // Write Serialization Queue (Mutex)
 let writeQueuePromise: Promise<any> = Promise.resolve();
@@ -145,15 +136,6 @@ export async function resolveGroupUuid(groupIdOrSlug: string | null): Promise<st
     return idToUuidMap.get(groupIdOrSlug)!;
   }
 
-  // Look up in local groups memory
-  const localMatch = localGroupsMemory.find(
-    (g) => g.id === groupIdOrSlug || g.slug === groupIdOrSlug || g.name.toLowerCase() === groupIdOrSlug.toLowerCase()
-  );
-  if (localMatch && isUUID(localMatch.id)) {
-    idToUuidMap.set(groupIdOrSlug, localMatch.id);
-    return localMatch.id;
-  }
-
   // If Supabase is configured, query database by slug or name
   if (isSupabaseConfigured()) {
     try {
@@ -174,14 +156,14 @@ export async function resolveGroupUuid(groupIdOrSlug: string | null): Promise<st
 
     // Auto-create category in DB if not found to ensure Foreign Key succeeds
     try {
-      const groupName = localMatch?.name || groupIdOrSlug.replace(/[-_]/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+      const groupName = groupIdOrSlug.replace(/[-_]/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
       const { data: newGroup, error: createErr } = await supabase
         .from('groups')
         .insert({
           name: groupName,
           slug: groupIdOrSlug.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
           available: true,
-          sort_order: localGroupsMemory.length + 1,
+          sort_order: 0,
         })
         .select()
         .single();
@@ -195,7 +177,7 @@ export async function resolveGroupUuid(groupIdOrSlug: string | null): Promise<st
     }
   }
 
-  return null;
+  throw new Error(`Group not found: ${groupIdOrSlug}`);
 }
 
 // ============================================================================
@@ -206,120 +188,68 @@ export async function resolveGroupUuid(groupIdOrSlug: string | null): Promise<st
  * Fetch All Groups (Categories)
  */
 export async function fetchGroups(includeDeleted = false): Promise<DBGroup[]> {
-  if (isSupabaseConfigured()) {
-    try {
-      let query = supabase.from('groups').select('*').order('sort_order', { ascending: true });
-      if (!includeDeleted) {
-        query = query.is('deleted_at', null);
-      }
-      const { data, error } = await query;
-      if (error) throw parseSupabaseError(error);
-
-      if (data && data.length > 0) {
-        localGroupsMemory = data.map((g) => ({
-          id: g.id,
-          slug: g.slug || g.id,
-          name: g.name,
-          image: g.image,
-          sort_order: g.sort_order ?? 0,
-          available: g.available ?? true,
-          attributes: g.attributes || {},
-          deleted_at: g.deleted_at,
-          created_at: g.created_at,
-        }));
-        return localGroupsMemory;
-      }
-    } catch (err) {
-      console.warn('Supabase fetchGroups error, using local state:', err);
-    }
+  if (!isSupabaseConfigured()) {
+    throw new Error('Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
   }
 
-  return includeDeleted
-    ? localGroupsMemory
-    : localGroupsMemory.filter((g) => !g.deleted_at);
+  let query = supabase.from('groups').select('*').order('sort_order', { ascending: true });
+  if (!includeDeleted) {
+    query = query.is('deleted_at', null);
+  }
+  const { data, error } = await query;
+  if (error) throw parseSupabaseError(error);
+
+  return (data || []).map((g) => ({
+    id: g.id,
+    slug: g.slug || g.id,
+    name: g.name,
+    image: g.image,
+    sort_order: g.sort_order ?? 0,
+    available: g.available ?? true,
+    attributes: g.attributes || {},
+    deleted_at: g.deleted_at,
+    created_at: g.created_at,
+  }));
 }
 
 /**
  * Save / Upsert Group (Category)
  */
 export async function saveGroup(group: Partial<DBGroup>): Promise<{ data: DBGroup; isSupabaseSynced: boolean }> {
+  if (!isSupabaseConfigured()) {
+    throw new Error('Supabase is not configured.');
+  }
+
   return serializeWrite(async () => {
-    lastLocalWriteTime = Date.now();
-    hasUnsavedLocalChanges = true;
-
-    let targetId = group.id;
-    if (targetId && idToUuidMap.has(targetId)) {
-      targetId = idToUuidMap.get(targetId)!;
-    }
-
     const name = group.name || 'Untitled Group';
     const slug = group.slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
-    const updatedGroupRecord: DBGroup = {
-      id: targetId || (isUUID(group.id || '') ? group.id! : 'grp-' + Date.now()),
-      slug,
+    const payload: any = {
       name,
+      slug,
       image: group.image || '',
-      sort_order: group.sort_order ?? localGroupsMemory.length + 1,
+      sort_order: group.sort_order ?? 0,
       available: group.available ?? true,
       attributes: group.attributes || {},
       deleted_at: null,
       updated_at: new Date().toISOString(),
     };
 
-    // Update Local Memory
-    const existingIdx = localGroupsMemory.findIndex((g) => g.id === group.id || g.id === targetId || g.slug === slug);
-    if (existingIdx >= 0) {
-      localGroupsMemory[existingIdx] = { ...localGroupsMemory[existingIdx], ...updatedGroupRecord };
-      updatedGroupRecord.id = localGroupsMemory[existingIdx].id;
-    } else {
-      localGroupsMemory.push(updatedGroupRecord);
+    if (group.id && isUUID(group.id)) {
+      payload.id = group.id;
     }
 
-    let isSupabaseSynced = false;
+    const { data, error } = await supabase
+      .from('groups')
+      .upsert(payload, { onConflict: payload.id ? 'id' : 'slug' })
+      .select()
+      .single();
 
-    if (isSupabaseConfigured()) {
-      const payload: any = {
-        name: updatedGroupRecord.name,
-        slug: updatedGroupRecord.slug,
-        image: updatedGroupRecord.image,
-        sort_order: updatedGroupRecord.sort_order,
-        available: updatedGroupRecord.available,
-        attributes: updatedGroupRecord.attributes,
-        deleted_at: null,
-        updated_at: new Date().toISOString(),
-      };
-
-      if (isUUID(updatedGroupRecord.id)) {
-        payload.id = updatedGroupRecord.id;
-      }
-
-      const { data, error } = await supabase
-        .from('groups')
-        .upsert(payload, { onConflict: payload.id ? 'id' : 'slug' })
-        .select()
-        .single();
-
-      if (error) {
-        throw parseSupabaseError(error);
-      }
-
-      if (data) {
-        isSupabaseSynced = true;
-        updatedGroupRecord.id = data.id;
-        if (group.id && group.id !== data.id) {
-          idToUuidMap.set(group.id, data.id);
-        }
-        // Sync local memory with actual DB UUID
-        const idx = localGroupsMemory.findIndex((g) => g.slug === slug || g.id === updatedGroupRecord.id);
-        if (idx >= 0) {
-          localGroupsMemory[idx].id = data.id;
-        }
-      }
+    if (error) {
+      throw parseSupabaseError(error);
     }
 
-    hasUnsavedLocalChanges = false;
-    return { data: updatedGroupRecord, isSupabaseSynced };
+    return { data: data as DBGroup, isSupabaseSynced: true };
   });
 }
 
@@ -327,137 +257,81 @@ export async function saveGroup(group: Partial<DBGroup>): Promise<{ data: DBGrou
  * Fetch All Items (Products)
  */
 export async function fetchItems(includeDeleted = false): Promise<DBItem[]> {
-  if (isSupabaseConfigured()) {
-    try {
-      let query = supabase.from('items').select('*').order('sort_order', { ascending: true });
-      if (!includeDeleted) {
-        query = query.is('deleted_at', null);
-      }
-      const { data, error } = await query;
-      if (error) throw parseSupabaseError(error);
-
-      if (data && data.length > 0) {
-        localItemsMemory = data.map((item) => ({
-          id: item.id,
-          slug: item.slug || item.id,
-          name: item.name,
-          group_id: item.group_id,
-          price: Number(item.price) || 0,
-          original_price: item.original_price ? Number(item.original_price) : undefined,
-          description: item.description || '',
-          image: item.image || '',
-          additional_images: item.additional_images || [],
-          attributes: item.attributes || {},
-          sort_order: item.sort_order ?? 0,
-          available: item.available ?? true,
-          deleted_at: item.deleted_at,
-          created_at: item.created_at,
-        }));
-        return localItemsMemory;
-      }
-    } catch (err) {
-      console.warn('Supabase fetchItems error, using local memory:', err);
-    }
+  if (!isSupabaseConfigured()) {
+    throw new Error('Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
   }
 
-  return includeDeleted
-    ? localItemsMemory
-    : localItemsMemory.filter((i) => !i.deleted_at);
+  let query = supabase.from('items').select('*').order('sort_order', { ascending: true });
+  if (!includeDeleted) {
+    query = query.is('deleted_at', null);
+  }
+  const { data, error } = await query;
+  if (error) throw parseSupabaseError(error);
+
+  return (data || []).map((item) => ({
+    id: item.id,
+    slug: item.slug || item.id,
+    name: item.name,
+    group_id: item.group_id,
+    price: Number(item.price) || 0,
+    original_price: item.original_price ? Number(item.original_price) : undefined,
+    description: item.description || '',
+    image: item.image || '',
+    additional_images: item.additional_images || [],
+    attributes: item.attributes || {},
+    sort_order: item.sort_order ?? 0,
+    available: item.available ?? true,
+    deleted_at: item.deleted_at,
+    created_at: item.created_at,
+  }));
 }
 
 /**
  * Save / Upsert Item (Product / Dish / Service)
  */
 export async function saveItem(item: Partial<DBItem>): Promise<{ data: DBItem; isSupabaseSynced: boolean }> {
-  return serializeWrite(async () => {
-    lastLocalWriteTime = Date.now();
-    hasUnsavedLocalChanges = true;
+  if (!isSupabaseConfigured()) {
+    throw new Error('Supabase is not configured.');
+  }
 
+  return serializeWrite(async () => {
     // Resolve group_id UUID
     const resolvedGroupUuid = await resolveGroupUuid(item.group_id || null);
-
-    let targetId = item.id;
-    if (targetId && idToUuidMap.has(targetId)) {
-      targetId = idToUuidMap.get(targetId)!;
-    }
 
     const name = item.name || 'Untitled Item';
     const slug = item.slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
-    const updatedItemRecord: DBItem = {
-      id: targetId || (isUUID(item.id || '') ? item.id! : 'item-' + Date.now()),
-      slug,
+    const payload: any = {
       name,
-      group_id: resolvedGroupUuid || item.group_id || null,
+      slug,
+      group_id: resolvedGroupUuid,
       price: Number(item.price) || 0,
       original_price: item.original_price ? Number(item.original_price) : undefined,
       description: item.description || '',
       image: item.image || '',
       additional_images: item.additional_images || [],
       attributes: item.attributes || {},
-      sort_order: item.sort_order ?? localItemsMemory.length + 1,
+      sort_order: item.sort_order ?? 0,
       available: item.available ?? true,
       deleted_at: null,
       updated_at: new Date().toISOString(),
     };
 
-    // Update Local Memory
-    const existingIdx = localItemsMemory.findIndex((i) => i.id === item.id || i.id === targetId || i.slug === slug);
-    if (existingIdx >= 0) {
-      localItemsMemory[existingIdx] = { ...localItemsMemory[existingIdx], ...updatedItemRecord };
-      updatedItemRecord.id = localItemsMemory[existingIdx].id;
-    } else {
-      localItemsMemory.push(updatedItemRecord);
+    if (item.id && isUUID(item.id)) {
+      payload.id = item.id;
     }
 
-    let isSupabaseSynced = false;
+    const { data, error } = await supabase
+      .from('items')
+      .upsert(payload, { onConflict: payload.id ? 'id' : 'slug' })
+      .select()
+      .single();
 
-    if (isSupabaseConfigured()) {
-      const payload: any = {
-        name: updatedItemRecord.name,
-        slug: updatedItemRecord.slug,
-        group_id: resolvedGroupUuid,
-        price: updatedItemRecord.price,
-        original_price: updatedItemRecord.original_price,
-        description: updatedItemRecord.description,
-        image: updatedItemRecord.image,
-        additional_images: updatedItemRecord.additional_images,
-        attributes: updatedItemRecord.attributes,
-        sort_order: updatedItemRecord.sort_order,
-        available: updatedItemRecord.available,
-        deleted_at: null,
-        updated_at: new Date().toISOString(),
-      };
-
-      if (isUUID(updatedItemRecord.id)) {
-        payload.id = updatedItemRecord.id;
-      }
-
-      const { data, error } = await supabase
-        .from('items')
-        .upsert(payload, { onConflict: payload.id ? 'id' : 'slug' })
-        .select()
-        .single();
-
-      if (error) {
-        throw parseSupabaseError(error);
-      }
-
-      if (data) {
-        isSupabaseSynced = true;
-        updatedItemRecord.id = data.id;
-        if (item.id && item.id !== data.id) {
-          idToUuidMap.set(item.id, data.id);
-        }
-        const idx = localItemsMemory.findIndex((i) => i.slug === slug || i.id === updatedItemRecord.id);
-        if (idx >= 0) {
-          localItemsMemory[idx].id = data.id;
-        }
-      }
+    if (error) {
+      throw parseSupabaseError(error);
     }
 
-    hasUnsavedLocalChanges = false;
-    return { data: updatedItemRecord, isSupabaseSynced };
+    return { data: data as DBItem, isSupabaseSynced: true };
   });
 }
 
@@ -465,166 +339,88 @@ export async function saveItem(item: Partial<DBItem>): Promise<{ data: DBItem; i
  * Soft Delete Item (Soft Trash)
  */
 export async function softDeleteItem(id: string): Promise<boolean> {
-  return serializeWrite(async () => {
-    const deletedAt = new Date().toISOString();
-    let realId = idToUuidMap.get(id) || id;
+  if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+  
+  const deletedAt = new Date().toISOString();
+  const { error } = await supabase.from('items').update({ deleted_at: deletedAt }).eq('id', id);
+  if (error) throw parseSupabaseError(error);
 
-    localItemsMemory = localItemsMemory.map((i) =>
-      i.id === id || i.id === realId ? { ...i, deleted_at: deletedAt } : i
-    );
-
-    if (isSupabaseConfigured() && isUUID(realId)) {
-      const { error } = await supabase.from('items').update({ deleted_at: deletedAt }).eq('id', realId);
-      if (error) throw parseSupabaseError(error);
-    }
-
-    return true;
-  });
+  return true;
 }
 
 /**
  * Soft Delete Group
  */
 export async function softDeleteGroup(id: string): Promise<boolean> {
-  return serializeWrite(async () => {
-    const deletedAt = new Date().toISOString();
-    let realId = idToUuidMap.get(id) || id;
+  if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+  
+  const deletedAt = new Date().toISOString();
+  const { error } = await supabase.from('groups').update({ deleted_at: deletedAt }).eq('id', id);
+  if (error) throw parseSupabaseError(error);
 
-    localGroupsMemory = localGroupsMemory.map((g) =>
-      g.id === id || g.id === realId ? { ...g, deleted_at: deletedAt } : g
-    );
-
-    if (isSupabaseConfigured() && isUUID(realId)) {
-      const { error } = await supabase.from('groups').update({ deleted_at: deletedAt }).eq('id', realId);
-      if (error) throw parseSupabaseError(error);
-    }
-
-    return true;
-  });
+  return true;
 }
 
 /**
  * Restore Item from Trash
  */
 export async function restoreItem(id: string): Promise<boolean> {
-  return serializeWrite(async () => {
-    let realId = idToUuidMap.get(id) || id;
+  if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+  
+  const { error } = await supabase.from('items').update({ deleted_at: null }).eq('id', id);
+  if (error) throw parseSupabaseError(error);
 
-    localItemsMemory = localItemsMemory.map((i) =>
-      i.id === id || i.id === realId ? { ...i, deleted_at: null } : i
-    );
-
-    if (isSupabaseConfigured() && isUUID(realId)) {
-      const { error } = await supabase.from('items').update({ deleted_at: null }).eq('id', realId);
-      if (error) throw parseSupabaseError(error);
-    }
-
-    return true;
-  });
+  return true;
 }
 
 /**
  * Restore Group from Trash
  */
 export async function restoreGroup(id: string): Promise<boolean> {
-  return serializeWrite(async () => {
-    let realId = idToUuidMap.get(id) || id;
+  if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+  
+  const { error } = await supabase.from('groups').update({ deleted_at: null }).eq('id', id);
+  if (error) throw parseSupabaseError(error);
 
-    localGroupsMemory = localGroupsMemory.map((g) =>
-      g.id === id || g.id === realId ? { ...g, deleted_at: null } : g
-    );
-
-    if (isSupabaseConfigured() && isUUID(realId)) {
-      const { error } = await supabase.from('groups').update({ deleted_at: null }).eq('id', realId);
-      if (error) throw parseSupabaseError(error);
-    }
-
-    return true;
-  });
+  return true;
 }
 
 /**
  * Purge Item Permanently
  */
 export async function purgeItemPermanently(id: string): Promise<boolean> {
-  return serializeWrite(async () => {
-    let realId = idToUuidMap.get(id) || id;
+  if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+  
+  const { error } = await supabase.from('items').delete().eq('id', id);
+  if (error) throw parseSupabaseError(error);
 
-    localItemsMemory = localItemsMemory.filter((i) => i.id !== id && i.id !== realId);
-
-    if (isSupabaseConfigured() && isUUID(realId)) {
-      const { error } = await supabase.from('items').delete().eq('id', realId);
-      if (error) throw parseSupabaseError(error);
-    }
-
-    return true;
-  });
+  return true;
 }
 
-/**
- * Reorder Items (Contiguous sort_order updates)
- */
-export async function reorderItems(orderedIds: string[]): Promise<boolean> {
-  return serializeWrite(async () => {
-    orderedIds.forEach((id, index) => {
-      const realId = idToUuidMap.get(id) || id;
-      const idx = localItemsMemory.findIndex((item) => item.id === id || item.id === realId);
-      if (idx >= 0) {
-        localItemsMemory[idx].sort_order = index + 1;
-      }
-    });
-
-    if (isSupabaseConfigured()) {
-      const updates = orderedIds
-        .map((id, index) => {
-          const realId = idToUuidMap.get(id) || id;
-          return isUUID(realId) ? { id: realId, sort_order: index + 1 } : null;
-        })
-        .filter(Boolean);
-
-      if (updates.length > 0) {
-        for (const update of updates) {
-          const { error } = await supabase.from('items').update({ sort_order: update!.sort_order }).eq('id', update!.id);
-          if (error) throw parseSupabaseError(error);
-        }
-      }
-    }
-
-    return true;
-  });
-}
 
 /**
  * Reorder Groups
  */
+export async function reorderItems(orderedIds: string[]): Promise<boolean> {
+  if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+  
+  for (const [index, id] of orderedIds.entries()) {
+    const { error } = await supabase.from('items').update({ sort_order: index + 1 }).eq('id', id);
+    if (error) throw parseSupabaseError(error);
+  }
+
+  return true;
+}
+
 export async function reorderGroups(orderedIds: string[]): Promise<boolean> {
-  return serializeWrite(async () => {
-    orderedIds.forEach((id, index) => {
-      const realId = idToUuidMap.get(id) || id;
-      const idx = localGroupsMemory.findIndex((group) => group.id === id || group.id === realId);
-      if (idx >= 0) {
-        localGroupsMemory[idx].sort_order = index + 1;
-      }
-    });
+  if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+  
+  for (const [index, id] of orderedIds.entries()) {
+    const { error } = await supabase.from('groups').update({ sort_order: index + 1 }).eq('id', id);
+    if (error) throw parseSupabaseError(error);
+  }
 
-    if (isSupabaseConfigured()) {
-      const updates = orderedIds
-        .map((id, index) => {
-          const realId = idToUuidMap.get(id) || id;
-          return isUUID(realId) ? { id: realId, sort_order: index + 1 } : null;
-        })
-        .filter(Boolean);
-
-      if (updates.length > 0) {
-        for (const update of updates) {
-          const { error } = await supabase.from('groups').update({ sort_order: update!.sort_order }).eq('id', update!.id);
-          if (error) throw parseSupabaseError(error);
-        }
-      }
-    }
-
-    return true;
-  });
+  return true;
 }
 
 /**
@@ -757,17 +553,6 @@ export async function runDatabaseHealthCheck(): Promise<HealthCheckResult> {
 }
 
 
-/**
- * Utility: Initialize Local Data Memory from Seed Data
- */
-export function seedLocalMemory(initialGroups: DBGroup[], initialItems: DBItem[]) {
-  if (localGroupsMemory.length === 0) {
-    localGroupsMemory = initialGroups;
-  }
-  if (localItemsMemory.length === 0) {
-    localItemsMemory = initialItems;
-  }
-}
 
 // Mapping Functions
 import { FurnitureItem, Category } from '../../types';
