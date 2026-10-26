@@ -213,22 +213,8 @@ export default function App() {
         slug: product.slug,
         category_id: product.category,
         price: product.price,
-        original_price: product.originalPrice,
         description: product.description,
-        image: product.image,
-        additional_images: product.additionalImages,
         active: product.isActive !== false,
-        attributes: {
-          longDescription: product.longDescription,
-          dimensions: product.dimensions,
-          material: product.material,
-          finish: product.finish,
-          seatingCapacity: product.seatingCapacity,
-          color: product.color,
-          warranty: product.warranty,
-          inStock: product.inStock,
-          tags: product.tags,
-        },
       });
 
       await loadData();
@@ -293,7 +279,6 @@ export default function App() {
         id: category.id,
         name: category.name,
         slug: category.slug,
-        image: category.image,
         active: category.isActive !== false,
       });
 
