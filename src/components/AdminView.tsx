@@ -30,11 +30,11 @@ import { isSupabaseConfigured, getSupabaseUrl } from '../lib/supabase';
 import {
   runDatabaseHealthCheck,
   HealthCheckResult,
-  restoreProduct,
-  restoreCategory,
-  purgeProductPermanently,
-  reorderProducts,
-  reorderCategories,
+  restoreItem,
+  restoreGroup,
+  purgeItemPermanently,
+  reorderItems,
+  reorderGroups,
 } from '../lib/data';
 
 interface AdminViewProps {
@@ -176,7 +176,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
     list[targetIdx] = temp;
 
     const orderedIds = list.map((i) => i.id);
-    await reorderProducts(orderedIds);
+    await reorderItems(orderedIds);
   };
 
   // Move category up / down
@@ -190,7 +190,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
     list[targetIdx] = temp;
 
     const orderedIds = list.map((c) => c.id);
-    await reorderCategories(orderedIds);
+    await reorderGroups(orderedIds);
   };
 
   const copySqlSchema = () => {
@@ -747,7 +747,7 @@ NOTIFY pgrst, 'reload schema';
                       <div className="flex items-center gap-2">
                         <button
                           onClick={async () => {
-                            await restoreProduct(item.id);
+                            await restoreItem(item.id);
                             onStoreToDatabase();
                           }}
                           className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer"
@@ -757,7 +757,7 @@ NOTIFY pgrst, 'reload schema';
                         </button>
                         <button
                           onClick={async () => {
-                            await purgeProductPermanently(item.id);
+                            await purgeItemPermanently(item.id);
                             onStoreToDatabase();
                           }}
                           className="bg-red-50 hover:bg-red-100 text-red-700 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer"

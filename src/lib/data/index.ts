@@ -170,7 +170,7 @@ export async function resolveGroupUuid(groupIdOrSlug: string | null): Promise<st
 /**
  * Fetch All Groups (Categories)
  */
-export async function fetchCategories(includeDeleted = false): Promise<DBGroup[]> {
+export async function fetchGroups(includeDeleted = false): Promise<DBGroup[]> {
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
   }
@@ -198,7 +198,7 @@ export async function fetchCategories(includeDeleted = false): Promise<DBGroup[]
 /**
  * Save / Upsert Group (Category)
  */
-export async function saveCategory(group: Partial<DBGroup>): Promise<{ data: DBGroup; isSupabaseSynced: boolean }> {
+export async function saveGroup(group: Partial<DBGroup>): Promise<{ data: DBGroup; isSupabaseSynced: boolean }> {
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase is not configured.');
   }
@@ -239,7 +239,7 @@ export async function saveCategory(group: Partial<DBGroup>): Promise<{ data: DBG
 /**
  * Fetch All Items (Products)
  */
-export async function fetchProducts(includeDeleted = false): Promise<DBItem[]> {
+export async function fetchItems(includeDeleted = false): Promise<DBItem[]> {
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
   }
@@ -272,7 +272,7 @@ export async function fetchProducts(includeDeleted = false): Promise<DBItem[]> {
 /**
  * Save / Upsert Item (Product / Dish / Service)
  */
-export async function saveProduct(item: Partial<DBItem>): Promise<{ data: DBItem; isSupabaseSynced: boolean }> {
+export async function saveItem(item: Partial<DBItem>): Promise<{ data: DBItem; isSupabaseSynced: boolean }> {
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase is not configured.');
   }
@@ -321,7 +321,7 @@ export async function saveProduct(item: Partial<DBItem>): Promise<{ data: DBItem
 /**
  * Soft Delete Item (Soft Trash)
  */
-export async function softDeleteProduct(id: string): Promise<boolean> {
+export async function softDeleteItem(id: string): Promise<boolean> {
   if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
   
   const deletedAt = new Date().toISOString();
@@ -334,7 +334,7 @@ export async function softDeleteProduct(id: string): Promise<boolean> {
 /**
  * Soft Delete Group
  */
-export async function softDeleteCategory(id: string): Promise<boolean> {
+export async function softDeleteGroup(id: string): Promise<boolean> {
   if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
   
   const deletedAt = new Date().toISOString();
@@ -347,7 +347,7 @@ export async function softDeleteCategory(id: string): Promise<boolean> {
 /**
  * Restore Item from Trash
  */
-export async function restoreProduct(id: string): Promise<boolean> {
+export async function restoreItem(id: string): Promise<boolean> {
   if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
   
   const { error } = await supabase.from('items').update({ deleted_at: null }).eq('id', id);
@@ -359,7 +359,7 @@ export async function restoreProduct(id: string): Promise<boolean> {
 /**
  * Restore Group from Trash
  */
-export async function restoreCategory(id: string): Promise<boolean> {
+export async function restoreGroup(id: string): Promise<boolean> {
   if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
   
   const { error } = await supabase.from('groups').update({ deleted_at: null }).eq('id', id);
@@ -371,7 +371,7 @@ export async function restoreCategory(id: string): Promise<boolean> {
 /**
  * Purge Item Permanently
  */
-export async function purgeProductPermanently(id: string): Promise<boolean> {
+export async function purgeItemPermanently(id: string): Promise<boolean> {
   if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
   
   const { error } = await supabase.from('items').delete().eq('id', id);
@@ -384,7 +384,7 @@ export async function purgeProductPermanently(id: string): Promise<boolean> {
 /**
  * Reorder Items
  */
-export async function reorderProducts(orderedIds: string[]): Promise<boolean> {
+export async function reorderItems(orderedIds: string[]): Promise<boolean> {
   if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
   
   for (const [index, id] of orderedIds.entries()) {
@@ -395,7 +395,7 @@ export async function reorderProducts(orderedIds: string[]): Promise<boolean> {
   return true;
 }
 
-export async function reorderCategories(orderedIds: string[]): Promise<boolean> {
+export async function reorderGroups(orderedIds: string[]): Promise<boolean> {
   if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
   
   for (const [index, id] of orderedIds.entries()) {

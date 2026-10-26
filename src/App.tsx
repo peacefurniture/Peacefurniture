@@ -21,20 +21,20 @@ import {
   FilterState,
 } from './types';
 import {
-  fetchProducts,
-  fetchCategories,
-  saveProduct,
-  saveCategory,
-  softDeleteProduct,
-  softDeleteCategory,
+  fetchItems,
+  fetchGroups,
+  saveItem,
+  saveGroup,
+  softDeleteItem,
+  softDeleteGroup,
   DBItem,
   DBGroup,
   mapDBItemToFurnitureItem,
   mapDBGroupToCategory,
   mapFurnitureItemToDBItem,
   mapCategoryToDBGroup,
-  reorderProducts,
-  reorderCategories,
+  reorderItems,
+  reorderGroups,
 } from './lib/data';
 import { NICHE_CONFIG } from './config/niche';
 
@@ -69,8 +69,8 @@ export default function App() {
     setIsLoading(true);
     try {
       const [fetchedGroups, fetchedItems] = await Promise.all([
-        fetchCategories(false),
-        fetchProducts(false),
+        fetchGroups(false),
+        fetchItems(false),
       ]);
       setGroups(fetchedGroups);
       setItems(fetchedItems);
@@ -93,13 +93,13 @@ export default function App() {
 
       // Save all groups
       for (const group of groups) {
-        const res = await saveCategory(group);
+        const res = await saveGroup(group);
         if (res.isSupabaseSynced) isCloudSynced = true;
       }
 
       // Save all items
       for (const item of items) {
-        const res = await saveProduct(item);
+        const res = await saveItem(item);
         if (res.isSupabaseSynced) isCloudSynced = true;
         savedCount++;
       }
@@ -245,7 +245,7 @@ export default function App() {
   const handleSaveProduct = async (product: FurnitureItem) => {
     const isEdit = Boolean(editingAdminProduct);
     try {
-      const { data, isSupabaseSynced } = await saveProduct({
+      const { data, isSupabaseSynced } = await saveItem({
         id: product.id,
         name: product.name,
         group_id: product.category,
@@ -295,7 +295,7 @@ export default function App() {
     const target = products.find((p) => p.id === productId);
     if (!target) return;
     try {
-      await softDeleteProduct(productId);
+      await softDeleteItem(productId);
       setItems((prev) => prev.map((p) => (p.id === productId ? { ...p, deleted_at: new Date().toISOString() } : p)));
       showToast(`Moved "${target.name}" to Trash`);
     } catch (err: any) {
@@ -312,7 +312,7 @@ export default function App() {
     const updated = { ...target, isActive: newStatus };
 
     try {
-      await saveProduct({
+      await saveItem({
         id: target.id,
         name: target.name,
         group_id: target.category,
@@ -340,7 +340,7 @@ export default function App() {
   const handleSaveCategory = async (category: Category) => {
     const isEdit = Boolean(editingAdminCategory);
     try {
-      const { data, isSupabaseSynced } = await saveCategory({
+      const { data, isSupabaseSynced } = await saveGroup({
         id: category.id,
         name: category.name,
         image: category.image,
@@ -377,7 +377,7 @@ export default function App() {
     const catToDelete = categories.find((c) => c.id === categoryId);
 
     try {
-      await softDeleteCategory(categoryId);
+      await softDeleteGroup(categoryId);
       setGroups((prev) => prev.map((c) => (c.id === categoryId ? { ...c, deleted_at: new Date().toISOString() } : c)));
       showToast(`Moved category "${catToDelete?.name || categoryId}" to Trash`);
     } catch (err: any) {
@@ -393,7 +393,7 @@ export default function App() {
     const updatedCategory = { ...target, isActive: newStatus };
 
     try {
-      await saveCategory({
+      await saveGroup({
         id: target.id,
         name: target.name,
         available: newStatus,
