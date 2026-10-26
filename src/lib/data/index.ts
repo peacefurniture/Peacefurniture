@@ -756,6 +756,7 @@ export async function runDatabaseHealthCheck(): Promise<HealthCheckResult> {
   return result;
 }
 
+
 /**
  * Utility: Initialize Local Data Memory from Seed Data
  */
@@ -767,3 +768,93 @@ export function seedLocalMemory(initialGroups: DBGroup[], initialItems: DBItem[]
     localItemsMemory = initialItems;
   }
 }
+
+// Mapping Functions
+import { FurnitureItem, Category } from '../../types';
+
+export function mapDBItemToFurnitureItem(item: DBItem): FurnitureItem {
+  return {
+    id: item.id,
+    slug: item.slug,
+    name: item.name,
+    category: (item.group_id as any) || 'all',
+    group_id: item.group_id || undefined,
+    price: item.price,
+    originalPrice: item.original_price,
+    description: item.description,
+    longDescription: item.attributes.longDescription || item.description,
+    image: item.image,
+    additionalImages: item.additional_images,
+    dimensions: item.attributes.dimensions,
+    material: item.attributes.material,
+    finish: item.attributes.finish,
+    seatingCapacity: item.attributes.seatingCapacity,
+    color: item.attributes.color,
+    warranty: item.attributes.warranty,
+    inStock: item.attributes.inStock ?? true,
+    isActive: item.available,
+    tags: item.attributes.tags,
+    rating: item.attributes.rating || 4.8,
+    reviewsCount: item.attributes.reviewsCount || 0,
+    deleted_at: item.deleted_at,
+  };
+}
+
+export function mapDBGroupToCategory(group: DBGroup): Category {
+  return {
+    id: group.id as any,
+    name: group.name,
+    slug: group.slug,
+    image: group.image || '',
+    count: 0,
+    isActive: group.available,
+    deleted_at: group.deleted_at,
+    attributes: group.attributes,
+  };
+}
+
+export function mapFurnitureItemToDBItem(item: FurnitureItem, existingItem: DBItem): DBItem {
+  return {
+    ...existingItem,
+    id: item.id,
+    name: item.name,
+    group_id: item.category as string,
+    price: item.price,
+    original_price: item.originalPrice,
+    description: item.description,
+    image: item.image,
+    additional_images: item.additionalImages,
+    available: item.isActive ?? true,
+    attributes: {
+      ...existingItem.attributes,
+      longDescription: item.longDescription,
+      dimensions: item.dimensions,
+      material: item.material,
+      finish: item.finish,
+      seatingCapacity: item.seatingCapacity,
+      color: item.color,
+      warranty: item.warranty,
+      inStock: item.inStock,
+      tags: item.tags,
+      rating: item.rating,
+      reviewsCount: item.reviewsCount,
+    },
+    updated_at: new Date().toISOString(),
+  };
+}
+
+export function mapCategoryToDBGroup(category: Category, existingGroup: DBGroup): DBGroup {
+  return {
+    ...existingGroup,
+    id: category.id as string,
+    name: category.name,
+    slug: category.slug || existingGroup.slug,
+    image: category.image,
+    available: category.isActive ?? true,
+    attributes: {
+      ...existingGroup.attributes,
+    },
+    updated_at: new Date().toISOString(),
+  };
+}
+

@@ -15,6 +15,12 @@ import { Footer } from './components/Footer';
 import { Home, Search, ShieldCheck, CheckCircle2, AlertCircle } from 'lucide-react';
 import { isSupabaseConfigured } from './lib/supabase';
 import {
+  CategoryId,
+  FurnitureItem,
+  Category,
+  FilterState,
+} from './types';
+import {
   fetchItems,
   fetchGroups,
   saveItem,
@@ -23,6 +29,10 @@ import {
   softDeleteGroup,
   DBItem,
   DBGroup,
+  mapDBItemToFurnitureItem,
+  mapDBGroupToCategory,
+  mapFurnitureItemToDBItem,
+  mapCategoryToDBGroup,
 } from './lib/data';
 import { NICHE_CONFIG } from './config/niche';
 
@@ -35,8 +45,8 @@ export default function App() {
   const [groups, setGroups] = useState<DBGroup[]>([]);
   
   // Temporary mapping for compatibility
-  const products = items;
-  const categories = groups;
+  const products = useMemo(() => items.map(mapDBItemToFurnitureItem), [items]);
+  const categories = useMemo(() => groups.map(mapDBGroupToCategory), [groups]);
   
   const [isLoading, setIsLoading] = useState(true);
 
@@ -256,19 +266,14 @@ export default function App() {
         },
       });
 
-      const updatedProd: FurnitureItem = {
-        ...product,
-        id: data.id,
-      };
-
-      setProducts((prev) => {
+      setItems((prev) => {
         const idx = prev.findIndex((p) => p.id === product.id || p.id === data.id);
         if (idx >= 0) {
           const next = [...prev];
-          next[idx] = updatedProd;
-          return next;
+          next[idx] = data;
+          return next as DBItem[];
         }
-        return [updatedProd, ...prev];
+        return [data, ...prev] as DBItem[];
       });
 
       showToast(
@@ -288,7 +293,7 @@ export default function App() {
     const target = products.find((p) => p.id === productId);
     try {
       await softDeleteItem(productId);
-      setProducts((prev) => prev.map((p) => (p.id === productId ? { ...p, deleted_at: new Date().toISOString() } : p)));
+      setItems((prev) => prev.map((p) => (p.id === productId ? { ...p, deleted_at: new Date().toISOString() } : p)));
       showToast(`Moved "${target?.name || 'Item'}" to Trash`);
     } catch (err: any) {
       showToast(`Delete Error: ${err.message}`);
@@ -311,7 +316,7 @@ export default function App() {
         available: newStatus,
       });
 
-      setProducts((prev) => prev.map((p) => (p.id === productId ? updated : p)));
+      setItems((prev) => prev.map((p) => (p.id === productId ? mapFurnitureItemToDBItem(updated, p) : p)));
       showToast(newStatus ? `"${target.name}" is now Active` : `"${target.name}" is now Hidden`);
     } catch (err: any) {
       showToast(`Status Error: ${err.message}`);
@@ -339,19 +344,14 @@ export default function App() {
         available: category.isActive !== false,
       });
 
-      const updatedCat: Category = {
-        ...category,
-        id: data.id as CategoryId,
-      };
-
-      setCategories((prev) => {
+      setGroups((prev) => {
         const idx = prev.findIndex((c) => c.id === category.id || c.id === data.id);
         if (idx >= 0) {
           const next = [...prev];
-          next[idx] = updatedCat;
-          return next;
+          next[idx] = data;
+          return next as DBGroup[];
         }
-        return [...prev, updatedCat];
+        return [...prev, data] as DBGroup[];
       });
 
       showToast(
@@ -375,7 +375,7 @@ export default function App() {
 
     try {
       await softDeleteGroup(categoryId);
-      setCategories((prev) => prev.map((c) => (c.id === categoryId ? { ...c, deleted_at: new Date().toISOString() } : c)));
+      setGroups((prev) => prev.map((c) => (c.id === categoryId ? { ...c, deleted_at: new Date().toISOString() } : c)));
       showToast(`Moved category "${catToDelete?.name || categoryId}" to Trash`);
     } catch (err: any) {
       showToast(`Error: ${err.message}`);
@@ -396,7 +396,7 @@ export default function App() {
         available: newStatus,
       });
 
-      setCategories((prev) => prev.map((c) => (c.id === categoryId ? updatedCategory : c)));
+      setGroups((prev) => prev.map((c) => (c.id === categoryId ? mapCategoryToDBGroup(updatedCategory, c) : c)));
       showToast(newStatus ? `Category "${target.name}" is now Active` : `Category "${target.name}" is now Hidden`);
     } catch (err: any) {
       showToast(`Error: ${err.message}`);
