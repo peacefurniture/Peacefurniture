@@ -166,20 +166,24 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
   const copySqlSchema = () => {
     const sql = `
--- COPY THIS INTO YOUR SUPABASE SQL EDITOR TO FIX ALL TABLES, COLUMNS & RLS POLICIES:
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
+-- 1. TABLES & COLUMNS (Hardened)
 CREATE TABLE IF NOT EXISTS categories (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   slug TEXT UNIQUE,
   name TEXT NOT NULL,
   image TEXT,
-  active BOOLEAN DEFAULT true,
   item_count INT DEFAULT 0,
+  active BOOLEAN DEFAULT true,
   deleted_at TIMESTAMPTZ DEFAULT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Ensure image column exists if table was created without it
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS image TEXT;
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS item_count INT DEFAULT 0;
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT true;
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ DEFAULT NULL;
 
 CREATE TABLE IF NOT EXISTS items (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -196,46 +200,37 @@ CREATE TABLE IF NOT EXISTS items (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- STORAGE BUCKET POLICIES
--- CREATE POLICY "Public Access" ON storage.objects FOR SELECT USING (bucket_id = 'Images');
--- CREATE POLICY "Authenticated Upload" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'Images');
+-- Ensure columns exist
+ALTER TABLE items ADD COLUMN IF NOT EXISTS image TEXT;
+ALTER TABLE items ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE items ADD COLUMN IF NOT EXISTS price NUMERIC DEFAULT 0;
+ALTER TABLE items ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT true;
+ALTER TABLE items ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ DEFAULT NULL;
 
--- Trigger to auto-update item_count in categories
-CREATE OR REPLACE FUNCTION update_category_item_count()
-RETURNS TRIGGER AS $$
-BEGIN
-  IF (TG_OP = 'INSERT') THEN
-    UPDATE categories SET item_count = item_count + 1 WHERE id = NEW.category_id;
-  ELSIF (TG_OP = 'DELETE') THEN
-    UPDATE categories SET item_count = item_count - 1 WHERE id = OLD.category_id;
-  ELSIF (TG_OP = 'UPDATE') THEN
-    IF (OLD.category_id IS DISTINCT FROM NEW.category_id) THEN
-      IF (OLD.category_id IS NOT NULL) THEN
-        UPDATE categories SET item_count = item_count - 1 WHERE id = OLD.category_id;
-      END IF;
-      IF (NEW.category_id IS NOT NULL) THEN
-        UPDATE categories SET item_count = item_count + 1 WHERE id = NEW.category_id;
-      END IF;
-    END IF;
-  END IF;
-  RETURN NULL;
-END;
-$$ LANGUAGE plpgsql;
-
-DROP TRIGGER IF EXISTS trg_update_category_item_count ON items;
-CREATE TRIGGER trg_update_category_item_count
-AFTER INSERT OR DELETE OR UPDATE OF category_id ON items
-FOR EACH ROW EXECUTE FUNCTION update_category_item_count();
-
+-- 2. ROW LEVEL SECURITY & POLICIES
 ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE items ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Public write categories" ON categories;
-CREATE POLICY "Public write categories" ON categories FOR ALL USING (true) WITH CHECK (true);
+-- Allow public read (Including SELECT policies)
+DROP POLICY IF EXISTS "Public Read Categories" ON categories;
+CREATE POLICY "Public Read Categories" ON categories FOR SELECT USING (true);
 
-DROP POLICY IF EXISTS "Public write items" ON items;
-CREATE POLICY "Public write items" ON items FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Public Read Items" ON items;
+CREATE POLICY "Public Read Items" ON items FOR SELECT USING (true);
 
+-- Allow authenticated write (Admin)
+DROP POLICY IF EXISTS "Admin All Categories" ON categories;
+CREATE POLICY "Admin All Categories" ON categories FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Admin All Items" ON items;
+CREATE POLICY "Admin All Items" ON items FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+-- 3. STORAGE BUCKET POLICIES (Required for image uploads)
+-- Create bucket 'Images' in Supabase Dashboard first!
+-- CREATE POLICY "Public Access" ON storage.objects FOR SELECT USING (bucket_id = 'Images');
+-- CREATE POLICY "Authenticated Upload" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'Images');
+
+-- 4. RELOAD SCHEMA
 NOTIFY pgrst, 'reload schema';
     `;
     navigator.clipboard.writeText(sql);

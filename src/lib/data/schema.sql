@@ -18,6 +18,12 @@ CREATE TABLE IF NOT EXISTS categories (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Ensure image column exists if table was created without it
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS image TEXT;
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS item_count INT DEFAULT 0;
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT true;
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ DEFAULT NULL;
+
 -- 3. ITEMS TABLE
 CREATE TABLE IF NOT EXISTS items (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -33,6 +39,13 @@ CREATE TABLE IF NOT EXISTS items (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Ensure columns exist
+ALTER TABLE items ADD COLUMN IF NOT EXISTS image TEXT;
+ALTER TABLE items ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE items ADD COLUMN IF NOT EXISTS price NUMERIC DEFAULT 0;
+ALTER TABLE items ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT true;
+ALTER TABLE items ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ DEFAULT NULL;
 
 -- 4. AUTO-UPDATE ITEM COUNT TRIGGER
 CREATE OR REPLACE FUNCTION update_category_item_count()
@@ -65,12 +78,18 @@ FOR EACH ROW EXECUTE FUNCTION update_category_item_count();
 ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE items ENABLE ROW LEVEL SECURITY;
 
--- Allow public read
-CREATE POLICY "Public Read Categories" ON categories FOR SELECT USING (deleted_at IS NULL AND active = true);
-CREATE POLICY "Public Read Items" ON items FOR SELECT USING (deleted_at IS NULL AND active = true);
+-- Allow public read (Including SELECT policies)
+DROP POLICY IF EXISTS "Public Read Categories" ON categories;
+CREATE POLICY "Public Read Categories" ON categories FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Public Read Items" ON items;
+CREATE POLICY "Public Read Items" ON items FOR SELECT USING (true);
 
 -- Allow authenticated write (Admin)
+DROP POLICY IF EXISTS "Admin All Categories" ON categories;
 CREATE POLICY "Admin All Categories" ON categories FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Admin All Items" ON items;
 CREATE POLICY "Admin All Items" ON items FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 -- 6. STORAGE BUCKET POLICIES (Run manually or via SQL Editor)

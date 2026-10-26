@@ -50,14 +50,17 @@ export default function App() {
   const loadData = async () => {
     setIsLoading(true);
     try {
+      // We fetch ALL records (including deleted) so that the Admin Trash and 
+      // public filtering both have the complete dataset to work with.
       const [fetchedGroups, fetchedItems] = await Promise.all([
-        fetchGroups(false),
-        fetchItems(false),
+        fetchGroups(true),
+        fetchItems(true),
       ]);
       setGroups(fetchedGroups);
       setItems(fetchedItems);
-    } catch (err) {
-      console.warn('Error loading data:', err);
+    } catch (err: any) {
+      console.error('Supabase Fetch Error:', err);
+      showToast(`Database Error: ${err.message || 'Failed to fetch data'}`);
     } finally {
       setIsLoading(false);
     }
