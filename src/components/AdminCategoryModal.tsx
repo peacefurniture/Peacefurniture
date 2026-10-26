@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Upload, Check, Trash2, RefreshCw, AlertCircle, Layers } from 'lucide-react';
 import { Category } from '../types';
+import { uploadImage } from '../lib/data';
 
 interface AdminCategoryModalProps {
   isOpen: boolean;
@@ -19,6 +20,7 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
   const [dragActive, setDragActive] = useState(false);
   const [uploadedImageName, setUploadedImageName] = useState<string>('');
   const [imageError, setImageError] = useState<string>('');
+  const [isUploading, setIsUploading] = useState(false);
 
   const [formData, setFormData] = useState<Partial<Category>>({
     name: '',
@@ -53,7 +55,7 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleFile = (file: File) => {
+  const handleFile = async (file: File) => {
     if (!file.type.startsWith('image/')) {
       setImageError('Please select a valid image file (PNG, JPG, JPEG, WEBP)');
       return;
@@ -64,17 +66,19 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      setFormData((prev) => ({ ...prev, image: result }));
+    setIsUploading(true);
+    setImageError('');
+
+    try {
+      const publicUrl = await uploadImage(file);
+      setFormData((prev) => ({ ...prev, image: publicUrl }));
       setUploadedImageName(file.name);
-      setImageError('');
-    };
-    reader.onerror = () => {
-      setImageError('Failed to read image file. Please try another image.');
-    };
-    reader.readAsDataURL(file);
+    } catch (err: any) {
+      console.error('Upload Error:', err);
+      setImageError(err.message || 'Failed to upload image. Ensure an "images" bucket exists in Supabase.');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -235,8 +239,12 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
 
             {formData.image ? (
               <div className="border border-gray-200 rounded-2xl p-3 bg-gray-50/70 flex items-center gap-3">
-                <div className="relative w-20 h-20 rounded-xl overflow-hidden bg-gray-200 flex-shrink-0 border border-white shadow-xs">
-                  <img src={formData.image} alt="Category Thumbnail" className="w-full h-full object-cover" />
+                <div className="relative w-20 h-20 rounded-xl overflow-hidden bg-gray-200 flex-shrink-0 border border-white shadow-xs flex items-center justify-center">
+                  {isUploading ? (
+                    <RefreshCw className="w-5 h-5 text-red-500 animate-spin" />
+                  ) : (
+                    <img src={formData.image} alt="Category Thumbnail" className="w-full h-full object-cover" />
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full mb-1">
@@ -247,11 +255,12 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
                   <div className="flex items-center gap-2 mt-2">
                     <button
                       type="button"
+                      disabled={isUploading}
                       onClick={() => fileInputRef.current?.click()}
-                      className="bg-white border border-gray-300 hover:border-gray-400 text-gray-700 px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer"
+                      className="bg-white border border-gray-300 hover:border-gray-400 text-gray-700 px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer disabled:opacity-50"
                     >
-                      <RefreshCw className="w-3 h-3" />
-                      <span>Change</span>
+                      <RefreshCw className={`w-3 h-3 ${isUploading ? 'animate-spin' : ''}`} />
+                      <span>{isUploading ? 'Uploading...' : 'Change'}</span>
                     </button>
                     <button
                       type="button"
@@ -272,13 +281,19 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
                 }}
                 onDragLeave={() => setDragActive(false)}
                 onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => !isUploading && fileInputRef.current?.click()}
                 className={`border-2 border-dashed rounded-2xl p-5 text-center transition-all cursor-pointer ${
                   dragActive ? 'border-[#E11D2A] bg-red-50' : 'border-gray-300 hover:border-[#E11D2A] hover:bg-red-50/20'
-                }`}
+                } ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}
               >
-                <Upload className="w-6 h-6 text-[#E11D2A] mx-auto mb-2" />
-                <p className="font-bold text-gray-900 text-xs mb-1">Tap to upload category image</p>
+                {isUploading ? (
+                  <RefreshCw className="w-6 h-6 text-[#E11D2A] mx-auto mb-2 animate-spin" />
+                ) : (
+                  <Upload className="w-6 h-6 text-[#E11D2A] mx-auto mb-2" />
+                )}
+                <p className="font-bold text-gray-900 text-xs mb-1">
+                  {isUploading ? 'Uploading to Supabase...' : 'Tap to upload category image'}
+                </p>
                 <p className="text-[11px] text-gray-400">PNG, JPG, WEBP under 5MB</p>
               </div>
             )}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Upload, Check, Trash2, RefreshCw, AlertCircle } from 'lucide-react';
 import { Category, CategoryId, FurnitureItem } from '../types';
+import { uploadImage } from '../lib/data';
 
 interface AdminProductModalProps {
   isOpen: boolean;
@@ -21,6 +22,7 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
   const [dragActive, setDragActive] = useState(false);
   const [uploadedImageName, setUploadedImageName] = useState<string>('');
   const [imageError, setImageError] = useState<string>('');
+  const [isUploading, setIsUploading] = useState(false);
 
   const [formData, setFormData] = useState<Partial<FurnitureItem>>({
     name: '',
@@ -98,7 +100,7 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
   if (!isOpen) return null;
 
   // Process uploaded image file
-  const handleFile = (file: File) => {
+  const handleFile = async (file: File) => {
     if (!file.type.startsWith('image/')) {
       setImageError('Please select a valid image file (PNG, JPG, JPEG, WEBP)');
       return;
@@ -109,17 +111,19 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      setFormData((prev) => ({ ...prev, image: result }));
+    setIsUploading(true);
+    setImageError('');
+    
+    try {
+      const publicUrl = await uploadImage(file);
+      setFormData((prev) => ({ ...prev, image: publicUrl }));
       setUploadedImageName(file.name);
-      setImageError('');
-    };
-    reader.onerror = () => {
-      setImageError('Failed to read image file. Please try another image.');
-    };
-    reader.readAsDataURL(file);
+    } catch (err: any) {
+      console.error('Upload Error:', err);
+      setImageError(err.message || 'Failed to upload image to Supabase Storage. Ensure an "images" bucket exists and has public select permissions.');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -275,15 +279,24 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
             {formData.image ? (
               /* Image Uploaded & Preview Card */
               <div className="border border-gray-200 rounded-2xl p-3 sm:p-4 bg-gray-50/70 flex flex-col sm:flex-row items-center gap-3 sm:gap-4">
-                <div className="relative w-full sm:w-36 h-36 sm:h-28 rounded-xl overflow-hidden bg-gray-200 flex-shrink-0 border-2 border-white shadow-sm">
-                  <img
-                    src={formData.image}
-                    alt="Uploaded Product"
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute top-1.5 right-1.5 bg-black/60 backdrop-blur-xs text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
-                    Photo Ready
-                  </div>
+                <div className="relative w-full sm:w-36 h-36 sm:h-28 rounded-xl overflow-hidden bg-gray-200 flex-shrink-0 border-2 border-white shadow-sm flex items-center justify-center">
+                  {isUploading ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <RefreshCw className="w-6 h-6 text-red-500 animate-spin" />
+                      <span className="text-[10px] font-bold text-gray-500">Uploading...</span>
+                    </div>
+                  ) : (
+                    <img
+                      src={formData.image}
+                      alt="Uploaded Product"
+                      className="w-full h-full object-cover"
+                    />
+                  )}
+                  {!isUploading && (
+                    <div className="absolute top-1.5 right-1.5 bg-black/60 backdrop-blur-xs text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
+                      Photo Ready
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex-1 w-full min-w-0 text-center sm:text-left">
@@ -301,11 +314,12 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
                   <div className="flex items-center justify-center sm:justify-start gap-2 mt-2.5">
                     <button
                       type="button"
+                      disabled={isUploading}
                       onClick={() => fileInputRef.current?.click()}
-                      className="flex-1 sm:flex-initial bg-white border border-gray-300 hover:border-gray-400 text-gray-700 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                      className="flex-1 sm:flex-initial bg-white border border-gray-300 hover:border-gray-400 text-gray-700 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs disabled:opacity-50"
                     >
-                      <RefreshCw className="w-3 h-3" />
-                      <span>Change Photo</span>
+                      <RefreshCw className={`w-3 h-3 ${isUploading ? 'animate-spin' : ''}`} />
+                      <span>{isUploading ? 'Uploading...' : 'Change Photo'}</span>
                     </button>
                     <button
                       type="button"
@@ -327,26 +341,32 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
                 }}
                 onDragLeave={() => setDragActive(false)}
                 onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => !isUploading && fileInputRef.current?.click()}
                 className={`border-2 border-dashed rounded-2xl p-5 sm:p-6 text-center transition-all cursor-pointer ${
                   dragActive
                     ? 'border-[#E11D2A] bg-red-50/70 scale-[1.01]'
                     : 'border-gray-300 hover:border-[#E11D2A] hover:bg-red-50/20 active:bg-red-50/30'
-                }`}
+                } ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}
               >
                 <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-red-50 text-[#E11D2A] flex items-center justify-center mx-auto mb-2 sm:mb-3 shadow-xs">
-                  <Upload className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2]" />
+                  {isUploading ? (
+                    <RefreshCw className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2] animate-spin" />
+                  ) : (
+                    <Upload className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2]" />
+                  )}
                 </div>
                 <h4 className="font-extrabold text-gray-900 text-xs sm:text-sm mb-1">
-                  Tap to upload photo from your phone or PC
+                  {isUploading ? 'Uploading image to Supabase...' : 'Tap to upload photo from your phone or PC'}
                 </h4>
                 <p className="text-[11px] text-gray-500">
                   Accepts PNG, JPG, JPEG, WEBP files
                 </p>
-                <div className="mt-2.5 inline-flex items-center gap-1.5 bg-[#E11D2A] text-white text-xs font-bold px-4 py-2 rounded-xl shadow-xs">
-                  <Upload className="w-3.5 h-3.5" />
-                  <span>Select Image File</span>
-                </div>
+                {!isUploading && (
+                  <div className="mt-2.5 inline-flex items-center gap-1.5 bg-[#E11D2A] text-white text-xs font-bold px-4 py-2 rounded-xl shadow-xs">
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Select Image File</span>
+                  </div>
+                )}
               </div>
             )}
 

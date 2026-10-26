@@ -399,6 +399,36 @@ export async function purgeItemPermanently(id: string): Promise<boolean> {
   return true;
 }
 
+/**
+ * Upload Image to Supabase Storage Bucket
+ */
+export async function uploadImage(file: File, bucket: string = 'images'): Promise<string> {
+  if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+
+  const fileExt = file.name.split('.').pop();
+  const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
+  const filePath = `${fileName}`;
+
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .upload(filePath, file, {
+      cacheControl: '3600',
+      upsert: false
+    });
+
+  if (error) {
+    // If bucket doesn't exist, this might fail. 
+    // In a real app, we'd ensure the bucket exists or handle the error gracefully.
+    throw parseSupabaseError(error);
+  }
+
+  const { data: publicUrlData } = supabase.storage
+    .from(bucket)
+    .getPublicUrl(filePath);
+
+  return publicUrlData.publicUrl;
+}
+
 
 /**
  * Reorder Groups
