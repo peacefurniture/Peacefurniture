@@ -291,10 +291,11 @@ export default function App() {
   // Soft Delete Product
   const handleDeleteProduct = async (productId: string) => {
     const target = products.find((p) => p.id === productId);
+    if (!target) return;
     try {
       await softDeleteItem(productId);
       setItems((prev) => prev.map((p) => (p.id === productId ? { ...p, deleted_at: new Date().toISOString() } : p)));
-      showToast(`Moved "${target?.name || 'Item'}" to Trash`);
+      showToast(`Moved "${target.name}" to Trash`);
     } catch (err: any) {
       showToast(`Delete Error: ${err.message}`);
     }
