@@ -32,23 +32,6 @@ export interface DBItem {
   created_at?: string;
   updated_at?: string;
 }
-
-export interface DBPromotion {
-  id: string;
-  title: string;
-  subtitle?: string;
-  discount_tag?: string;
-  image?: string;
-  link_url?: string;
-  autoplay: boolean;
-  attributes: Record<string, any>;
-  sort_order: number;
-  available: boolean;
-  deleted_at?: string | null;
-  created_at?: string;
-  updated_at?: string;
-}
-
 export interface HealthCheckResult {
   ok: boolean;
   isConfigured: boolean;
@@ -187,7 +170,7 @@ export async function resolveGroupUuid(groupIdOrSlug: string | null): Promise<st
 /**
  * Fetch All Groups (Categories)
  */
-export async function fetchGroups(includeDeleted = false): Promise<DBGroup[]> {
+export async function fetchCategories(includeDeleted = false): Promise<DBGroup[]> {
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
   }
@@ -215,7 +198,7 @@ export async function fetchGroups(includeDeleted = false): Promise<DBGroup[]> {
 /**
  * Save / Upsert Group (Category)
  */
-export async function saveGroup(group: Partial<DBGroup>): Promise<{ data: DBGroup; isSupabaseSynced: boolean }> {
+export async function saveCategory(group: Partial<DBGroup>): Promise<{ data: DBGroup; isSupabaseSynced: boolean }> {
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase is not configured.');
   }
@@ -256,7 +239,7 @@ export async function saveGroup(group: Partial<DBGroup>): Promise<{ data: DBGrou
 /**
  * Fetch All Items (Products)
  */
-export async function fetchItems(includeDeleted = false): Promise<DBItem[]> {
+export async function fetchProducts(includeDeleted = false): Promise<DBItem[]> {
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
   }
@@ -289,7 +272,7 @@ export async function fetchItems(includeDeleted = false): Promise<DBItem[]> {
 /**
  * Save / Upsert Item (Product / Dish / Service)
  */
-export async function saveItem(item: Partial<DBItem>): Promise<{ data: DBItem; isSupabaseSynced: boolean }> {
+export async function saveProduct(item: Partial<DBItem>): Promise<{ data: DBItem; isSupabaseSynced: boolean }> {
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase is not configured.');
   }
@@ -338,7 +321,7 @@ export async function saveItem(item: Partial<DBItem>): Promise<{ data: DBItem; i
 /**
  * Soft Delete Item (Soft Trash)
  */
-export async function softDeleteItem(id: string): Promise<boolean> {
+export async function softDeleteProduct(id: string): Promise<boolean> {
   if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
   
   const deletedAt = new Date().toISOString();
@@ -351,7 +334,7 @@ export async function softDeleteItem(id: string): Promise<boolean> {
 /**
  * Soft Delete Group
  */
-export async function softDeleteGroup(id: string): Promise<boolean> {
+export async function softDeleteCategory(id: string): Promise<boolean> {
   if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
   
   const deletedAt = new Date().toISOString();
@@ -364,7 +347,7 @@ export async function softDeleteGroup(id: string): Promise<boolean> {
 /**
  * Restore Item from Trash
  */
-export async function restoreItem(id: string): Promise<boolean> {
+export async function restoreProduct(id: string): Promise<boolean> {
   if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
   
   const { error } = await supabase.from('items').update({ deleted_at: null }).eq('id', id);
@@ -376,7 +359,7 @@ export async function restoreItem(id: string): Promise<boolean> {
 /**
  * Restore Group from Trash
  */
-export async function restoreGroup(id: string): Promise<boolean> {
+export async function restoreCategory(id: string): Promise<boolean> {
   if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
   
   const { error } = await supabase.from('groups').update({ deleted_at: null }).eq('id', id);
@@ -388,7 +371,7 @@ export async function restoreGroup(id: string): Promise<boolean> {
 /**
  * Purge Item Permanently
  */
-export async function purgeItemPermanently(id: string): Promise<boolean> {
+export async function purgeProductPermanently(id: string): Promise<boolean> {
   if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
   
   const { error } = await supabase.from('items').delete().eq('id', id);
@@ -399,9 +382,9 @@ export async function purgeItemPermanently(id: string): Promise<boolean> {
 
 
 /**
- * Reorder Groups
+ * Reorder Items
  */
-export async function reorderItems(orderedIds: string[]): Promise<boolean> {
+export async function reorderProducts(orderedIds: string[]): Promise<boolean> {
   if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
   
   for (const [index, id] of orderedIds.entries()) {
@@ -412,7 +395,7 @@ export async function reorderItems(orderedIds: string[]): Promise<boolean> {
   return true;
 }
 
-export async function reorderGroups(orderedIds: string[]): Promise<boolean> {
+export async function reorderCategories(orderedIds: string[]): Promise<boolean> {
   if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
   
   for (const [index, id] of orderedIds.entries()) {
@@ -498,30 +481,6 @@ export async function runDatabaseHealthCheck(): Promise<HealthCheckResult> {
     result.checks.push({
       name: 'Table: items',
       status: 'fail',
-      message: err.message || String(err),
-    });
-  }
-
-  // Check 3: Promotions Table
-  try {
-    const { error: promoErr } = await supabase.from('promotions').select('id, title, subtitle, discount_tag, autoplay, deleted_at').limit(1);
-    if (promoErr) {
-      result.checks.push({
-        name: 'Table: promotions',
-        status: 'warn',
-        message: `Promotions table warning: ${promoErr.message}. Optional for hero banners.`,
-      });
-    } else {
-      result.checks.push({
-        name: 'Table: promotions',
-        status: 'pass',
-        message: 'Table "promotions" exists and is active.',
-      });
-    }
-  } catch (err: any) {
-    result.checks.push({
-      name: 'Table: promotions',
-      status: 'warn',
       message: err.message || String(err),
     });
   }
