@@ -23,7 +23,7 @@ export const TABLES = { categories: 'categories', items: 'items' } as const;
  * Storage bucket names. Bucket names are CASE-SENSITIVE and must match the
  * name shown in Supabase > Storage exactly.
  */
-export const BUCKETS = { items: 'item-images', categories: 'category-images' } as const;
+export const BUCKETS = { items: 'Images', categories: 'Images' } as const;
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
