@@ -244,7 +244,7 @@ export function isUUID(str: string | null | undefined): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
 }
 
-function slugify(text: string): string {
+export function slugify(text: string): string {
   const base = (text || '')
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -252,6 +252,40 @@ function slugify(text: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '');
   return base || `item-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/**
+ * Generates a unique slug from a name, appending -1, -2, etc. if the slug already exists.
+ */
+export function generateUniqueSlug(
+  name: string,
+  existingItems: Array<{ id?: string; name?: string; slug?: string }> = [],
+  currentId?: string
+): string {
+  const baseSlug = (name || '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '') || 'item';
+
+  const usedSlugs = new Set<string>();
+  for (const item of existingItems) {
+    if (currentId && item.id === currentId) continue;
+    if (item.slug) {
+      usedSlugs.add(item.slug.toLowerCase());
+    }
+  }
+
+  if (!usedSlugs.has(baseSlug)) {
+    return baseSlug;
+  }
+
+  let counter = 1;
+  while (usedSlugs.has(`${baseSlug}-${counter}`)) {
+    counter++;
+  }
+  return `${baseSlug}-${counter}`;
 }
 
 function randomSuffix(): string {

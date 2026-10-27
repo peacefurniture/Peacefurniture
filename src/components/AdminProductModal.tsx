@@ -167,11 +167,14 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
       initialProduct?.id
     );
 
+    const validCategories = categories.filter((cat) => cat.id !== 'all' && !cat.deleted_at);
+    const resolvedCategory = formData.category || (validCategories[0]?.id || '');
+
     const completeProduct: FurnitureItem = {
       id: initialProduct?.id || `product-${Date.now()}`,
       slug: generatedSlug,
       name: productNameTrimmed,
-      category: (formData.category || 'dining') as CategoryId,
+      category: resolvedCategory as CategoryId,
       price: Number(formData.price) || 9999,
       originalPrice: formData.originalPrice ? Number(formData.originalPrice) : undefined,
       description: formData.description || 'High quality furniture made with premium materials.',
@@ -412,17 +415,25 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
                 Category *
               </label>
               <select
-                value={formData.category || (categories.length > 1 ? categories[1].id : 'dining')}
+                required
+                value={formData.category || (categories.filter((cat) => cat.id !== 'all' && !cat.deleted_at)[0]?.id || '')}
                 onChange={(e) =>
                   setFormData({ ...formData, category: e.target.value as CategoryId })
                 }
                 className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-gray-900 focus:outline-none focus:border-[#E11D2A] focus:ring-1 focus:ring-[#E11D2A]"
               >
-                {categories.slice(1).map((cat) => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.name}
+                {categories
+                  .filter((cat) => cat.id !== 'all' && !cat.deleted_at)
+                  .map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </option>
+                  ))}
+                {categories.filter((cat) => cat.id !== 'all' && !cat.deleted_at).length === 0 && (
+                  <option value="" disabled>
+                    No category created yet (Please add a category first)
                   </option>
-                ))}
+                )}
               </select>
             </div>
           </div>
