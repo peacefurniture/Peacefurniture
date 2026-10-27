@@ -20,6 +20,7 @@ import {
   Check,
   X,
   LogOut,
+  Lock,
 } from 'lucide-react';
 import { Category, FurnitureItem } from '../types';
 import { HomeCraftLogo } from './HomeCraftLogo';
@@ -126,8 +127,12 @@ export const AdminView: React.FC<AdminViewProps> = ({
         if (!matchesName && !matchesCat && !matchesMat) return false;
       }
 
-      if (selectedCategoryFilter !== 'all' && item.category !== selectedCategoryFilter) {
-        return false;
+      if (selectedCategoryFilter !== 'all') {
+        const selectedCat = categories.find((c) => c.id === selectedCategoryFilter || c.slug === selectedCategoryFilter);
+        const matchesCategory =
+          item.category === selectedCategoryFilter ||
+          (selectedCat && (item.category === selectedCat.id || item.category === selectedCat.slug));
+        if (!matchesCategory) return false;
       }
 
       const isActive = item.isActive !== false;
@@ -375,7 +380,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                             </div>
                           </td>
                           <td className="py-3 px-4 font-semibold text-gray-600 capitalize">
-                            {categories.find((c) => c.id === item.category)?.name || item.category}
+                            {categories.find((c) => c.id === item.category || c.slug === item.category)?.name || item.category}
                           </td>
                           <td className="py-3 px-4 font-extrabold text-gray-900">
                             {labels.currency}{item.price.toLocaleString()}
@@ -473,50 +478,92 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   </thead>
                   <tbody className="divide-y divide-gray-100 text-xs">
                     {filteredCategories.map((cat, idx) => {
-                      const count = products.filter((p) => p.category === cat.id && !p.deleted_at).length;
+                      const isDefaultCategory = cat.slug === 'other' || cat.id === 'other' || cat.name?.toLowerCase() === 'other';
+                      const count = products.filter(
+                        (p) => (p.category === cat.id || (isDefaultCategory && (p.category === 'other' || !p.category))) && !p.deleted_at
+                      ).length;
                       return (
                         <tr key={cat.id} className="hover:bg-gray-50/60 transition-colors">
                           <td className="py-3 px-4">
                             <div className="flex items-center gap-3">
-                              <img
-                                src={cat.image}
-                                alt={cat.name}
-                                className="w-9 h-9 rounded-xl object-cover border border-gray-200"
-                              />
-                              <span className="font-bold text-gray-900">{cat.name}</span>
+                              {cat.image ? (
+                                <img
+                                  src={cat.image}
+                                  alt={cat.name}
+                                  className="w-9 h-9 rounded-xl object-cover border border-gray-200"
+                                />
+                              ) : (
+                                <div className="w-9 h-9 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-500 font-bold text-xs flex-shrink-0">
+                                  {isDefaultCategory ? <Lock className="w-4 h-4 text-amber-600" /> : '#'}
+                                </div>
+                              )}
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-gray-900">{cat.name}</span>
+                                  {isDefaultCategory && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                      <Lock className="w-2.5 h-2.5" />
+                                      Permanent Default
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-[10px] text-gray-400 block font-mono">slug: {cat.slug || 'other'}</span>
+                              </div>
                             </div>
                           </td>
                           <td className="py-3 px-4 font-semibold text-gray-600">
                             {count} {labels.itemPlural}
                           </td>
                           <td className="py-3 px-4">
-                            <button
-                              onClick={() => onToggleActiveCategory(cat.id)}
-                              className={`px-2.5 py-1 text-[10px] font-bold rounded-xl flex items-center gap-1 cursor-pointer ${
-                                cat.isActive !== false
-                                  ? 'bg-emerald-50 text-emerald-700'
-                                  : 'bg-amber-50 text-amber-700'
-                              }`}
-                            >
-                              {cat.isActive !== false ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-                              <span>{cat.isActive !== false ? 'Active' : 'Hidden'}</span>
-                            </button>
+                            {isDefaultCategory ? (
+                              <span
+                                className="px-2.5 py-1 text-[10px] font-bold rounded-xl flex items-center gap-1 bg-emerald-50 text-emerald-700 w-fit select-none"
+                                title="Permanent Default Category is always active"
+                              >
+                                <Eye className="w-3 h-3" />
+                                <span>Permanent Active</span>
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => onToggleActiveCategory(cat.id)}
+                                className={`px-2.5 py-1 text-[10px] font-bold rounded-xl flex items-center gap-1 cursor-pointer ${
+                                  cat.isActive !== false
+                                    ? 'bg-emerald-50 text-emerald-700'
+                                    : 'bg-amber-50 text-amber-700'
+                                }`}
+                              >
+                                {cat.isActive !== false ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+                                <span>{cat.isActive !== false ? 'Active' : 'Hidden'}</span>
+                              </button>
+                            )}
                           </td>
                           <td className="py-3 px-4 text-right">
-                            <div className="flex items-center justify-end gap-1.5">
-                              <button
-                                onClick={() => onEditCategory(cat)}
-                                className="p-1.5 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg cursor-pointer"
-                              >
-                                <Edit2 className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => onDeleteCategory(cat.id)}
-                                className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg cursor-pointer"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
+                            {isDefaultCategory ? (
+                              <div className="flex items-center justify-end gap-1.5">
+                                <span
+                                  className="inline-flex items-center gap-1 text-[11px] text-gray-400 font-medium px-2 py-1 bg-gray-100 rounded-lg select-none"
+                                  title="Default category cannot be edited or deleted"
+                                >
+                                  <Lock className="w-3.5 h-3.5 text-gray-400" />
+                                  <span>Locked</span>
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  onClick={() => onEditCategory(cat)}
+                                  className="p-1.5 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg cursor-pointer"
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => onDeleteCategory(cat.id)}
+                                  className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg cursor-pointer"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            )}
                           </td>
                         </tr>
                       );

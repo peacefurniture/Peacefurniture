@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Upload, Check, Trash2, RefreshCw, AlertCircle, Layers } from 'lucide-react';
+import { X, Upload, Check, Trash2, RefreshCw, AlertCircle, Layers, Lock } from 'lucide-react';
 import { Category } from '../types';
-import { uploadImage, generateUniqueSlug } from '../lib/data';
+import { uploadImage, generateUniqueSlug, isDefaultOtherCategory } from '../lib/data';
 
 interface AdminCategoryModalProps {
   isOpen: boolean;
@@ -95,21 +95,37 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
     }
   };
 
+  const isDefaultCategory = isDefaultOtherCategory(initialCategory);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isDefaultCategory) {
+      setImageError("The default 'Other' category is permanent and cannot be edited.");
+      return;
+    }
     if (!formData.name?.trim()) return;
+
+    const nameTrimmed = formData.name.trim();
+    if (nameTrimmed.toLowerCase() === 'other') {
+      setImageError("The 'Other' category already exists as the permanent default category. Please choose a different category name.");
+      return;
+    }
 
     if (!formData.image) {
       setImageError('Please provide an image for this category.');
       return;
     }
 
-    const nameTrimmed = formData.name.trim();
     const generatedSlug = generateUniqueSlug(
       nameTrimmed,
       existingCategories,
       initialCategory?.id
     );
+
+    if (generatedSlug.toLowerCase() === 'other') {
+      setImageError("The slug 'other' is reserved for the default category. Please choose a different category name.");
+      return;
+    }
 
     const generatedId =
       initialCategory?.id ||
@@ -154,6 +170,14 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {/* System Locked Banner */}
+        {isDefaultCategory && (
+          <div className="mx-4 sm:mx-6 mt-4 p-3 bg-amber-50 border border-amber-200 rounded-2xl flex items-center gap-2.5 text-xs text-amber-900 font-medium">
+            <Lock className="w-4 h-4 text-amber-600 flex-shrink-0" />
+            <span>The default <strong>Other</strong> category (slug: <code>other</code>) is permanent and cannot be edited or deleted.</span>
+          </div>
+        )}
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="overflow-y-auto p-4 sm:p-6 space-y-4 flex-1">

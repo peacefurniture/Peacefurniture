@@ -32,6 +32,7 @@ import {
   mapCategoryToDBGroup,
   isSupabaseConfigured,
   generateUniqueSlug,
+  isDefaultOtherCategory,
 } from './lib/data';
 import { NICHE_CONFIG } from './config/niche';
 
@@ -56,7 +57,23 @@ export default function App() {
         fetchGroups(true),
         fetchItems(true),
       ]);
-      setGroups(fetchedGroups);
+      let resolvedGroups = fetchedGroups;
+      const hasOther = resolvedGroups.some((g) => isDefaultOtherCategory(g));
+      if (!hasOther) {
+        resolvedGroups = [
+          ...resolvedGroups,
+          {
+            id: 'other',
+            slug: 'other',
+            name: 'Other',
+            active: true,
+            item_count: 0,
+            image: '',
+            deleted_at: null,
+          },
+        ];
+      }
+      setGroups(resolvedGroups);
       setItems(fetchedItems);
     } catch (err: any) {
       console.error('Supabase Fetch Error:', err);
@@ -124,12 +141,25 @@ export default function App() {
   // PUBLIC VISIBLE PRODUCTS FOR PAGE 1 (CATALOGUE)
   const catalogueProducts = useMemo(() => {
     const activeCategoryIds = new Set(categories.filter((c) => c.isActive !== false && !c.deleted_at).map((c) => c.id));
+    const activeCategorySlugs = new Set(categories.filter((c) => c.isActive !== false && !c.deleted_at).map((c) => c.slug));
     let items = products.filter(
-      (item) => item.isActive !== false && !item.deleted_at && (item.category === 'all' || activeCategoryIds.has(item.category))
+      (item) =>
+        item.isActive !== false &&
+        !item.deleted_at &&
+        (item.category === 'all' ||
+          activeCategoryIds.has(item.category) ||
+          activeCategorySlugs.has(item.category))
     );
 
     if (selectedCategory !== 'all') {
-      items = items.filter((item) => item.category === selectedCategory);
+      const selectedCat = categories.find((c) => c.id === selectedCategory || c.slug === selectedCategory);
+      items = items.filter((item) => {
+        if (item.category === selectedCategory) return true;
+        if (selectedCat) {
+          return item.category === selectedCat.id || item.category === selectedCat.slug;
+        }
+        return false;
+      });
     }
 
     if (filters.sortBy === 'price-asc') {
@@ -150,8 +180,14 @@ export default function App() {
   // PUBLIC VISIBLE PRODUCTS FOR PAGE 2 (SEARCH)
   const searchResults = useMemo(() => {
     const activeCategoryIds = new Set(categories.filter((c) => c.isActive !== false && !c.deleted_at).map((c) => c.id));
+    const activeCategorySlugs = new Set(categories.filter((c) => c.isActive !== false && !c.deleted_at).map((c) => c.slug));
     let items = products.filter(
-      (item) => item.isActive !== false && !item.deleted_at && (item.category === 'all' || activeCategoryIds.has(item.category))
+      (item) =>
+        item.isActive !== false &&
+        !item.deleted_at &&
+        (item.category === 'all' ||
+          activeCategoryIds.has(item.category) ||
+          activeCategorySlugs.has(item.category))
     );
 
     if (searchQuery.trim()) {
@@ -167,7 +203,14 @@ export default function App() {
     }
 
     if (filters.category !== 'all') {
-      items = items.filter((item) => item.category === filters.category);
+      const selectedCat = categories.find((c) => c.id === filters.category || c.slug === filters.category);
+      items = items.filter((item) => {
+        if (item.category === filters.category) return true;
+        if (selectedCat) {
+          return item.category === selectedCat.id || item.category === selectedCat.slug;
+        }
+        return false;
+      });
     }
 
     items = items.filter((item) => item.price <= filters.maxPrice);
@@ -195,12 +238,13 @@ export default function App() {
   const handleSaveProduct = async (product: FurnitureItem) => {
     const isEdit = Boolean(editingAdminProduct);
     const resolvedSlug = product.slug || generateUniqueSlug(product.name, products, product.id);
+    const targetCategoryId = product.category || (product as any).group_id || 'other';
     try {
       await saveItem({
         id: product.id,
         name: product.name,
         slug: resolvedSlug,
-        category_id: product.category,
+        category_id: targetCategoryId,
         price: product.price,
         description: product.description,
         image: product.image || '',
@@ -259,11 +303,19 @@ export default function App() {
   };
 
   const handleOpenEditCategory = (category: Category) => {
+    if (isDefaultOtherCategory(category)) {
+      showToast("Default category 'Other' cannot be edited.");
+      return;
+    }
     setEditingAdminCategory(category);
     setIsAdminCategoryModalOpen(true);
   };
 
   const handleSaveCategory = async (category: Category) => {
+    if (isDefaultOtherCategory(category)) {
+      showToast("Default category 'Other' cannot be edited.");
+      return;
+    }
     const isEdit = Boolean(editingAdminCategory);
     const resolvedSlug = category.slug || generateUniqueSlug(category.name, categories, category.id);
     try {
@@ -290,6 +342,10 @@ export default function App() {
       return;
     }
     const catToDelete = categories.find((c) => c.id === categoryId);
+    if (isDefaultOtherCategory(catToDelete) || categoryId === 'other') {
+      showToast("The default 'Other' category cannot be deleted.");
+      return;
+    }
 
     try {
       await softDeleteGroup(categoryId);
@@ -303,6 +359,10 @@ export default function App() {
   const handleToggleActiveCategory = async (categoryId: string) => {
     const target = categories.find((c) => c.id === categoryId);
     if (!target) return;
+    if (isDefaultOtherCategory(target) || categoryId === 'other') {
+      showToast("The default 'Other' category is permanently active and cannot be modified.");
+      return;
+    }
 
     const newStatus = target.isActive === false ? true : false;
 

@@ -341,6 +341,18 @@ export async function resolveGroupUuid(ref: string | null | undefined): Promise<
 
   requireConfigured();
 
+  if (ref.toLowerCase() === 'other') {
+    try {
+      const otherCat = await ensureDefaultOtherCategory();
+      if (otherCat?.id && isUUID(otherCat.id)) {
+        slugToUuid.set('other', otherCat.id);
+        return otherCat.id;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   const bySlug = await supabase.from(TABLES.categories).select('id').eq('slug', ref).limit(1);
   if (bySlug.error) throw parseSupabaseError(bySlug.error);
   if (bySlug.data && bySlug.data.length > 0) {
@@ -483,6 +495,98 @@ export async function deleteImage(urlOrPath: string | undefined | null, bucket: 
 // 6. CATEGORIES (table 'categories')
 // ============================================================================
 
+export const DEFAULT_CATEGORY_SLUG = 'other';
+export const DEFAULT_CATEGORY_NAME = 'Other';
+
+export function isDefaultOtherCategory(
+  categoryOrIdOrSlug: { slug?: string; id?: string; name?: string } | string | null | undefined
+): boolean {
+  if (!categoryOrIdOrSlug) return false;
+  if (typeof categoryOrIdOrSlug === 'string') {
+    const norm = categoryOrIdOrSlug.trim().toLowerCase();
+    return norm === 'other';
+  }
+  const slug = categoryOrIdOrSlug.slug?.trim().toLowerCase();
+  const id = categoryOrIdOrSlug.id?.trim().toLowerCase();
+  const name = categoryOrIdOrSlug.name?.trim().toLowerCase();
+  return slug === 'other' || id === 'other' || name === 'other';
+}
+
+/**
+ * Ensures the permanent default "Other" category exists in Supabase.
+ * It is created once, cannot be deleted or edited, and has slug 'other' & name 'Other'.
+ */
+export async function ensureDefaultOtherCategory(): Promise<DBCategory> {
+  const fallbackOther: DBCategory = {
+    id: 'other',
+    slug: 'other',
+    name: 'Other',
+    active: true,
+    item_count: 0,
+    image: '',
+    deleted_at: null,
+  };
+
+  if (!isSupabaseConfigured()) {
+    return fallbackOther;
+  }
+
+  try {
+    const { data: existing, error } = await supabase
+      .from(TABLES.categories)
+      .select('*')
+      .eq('slug', 'other')
+      .maybeSingle();
+
+    if (error && error.code !== 'PGRST116') {
+      console.warn('Error checking for default other category:', error);
+    }
+
+    if (existing) {
+      if (existing.deleted_at !== null || existing.active === false || existing.name !== 'Other') {
+        await supabase
+          .from(TABLES.categories)
+          .update({ deleted_at: null, active: true, name: 'Other' })
+          .eq('id', existing.id);
+        existing.deleted_at = null;
+        existing.active = true;
+        existing.name = 'Other';
+      }
+      return mapCategoryRow(existing);
+    }
+
+    // Category doesn't exist yet: create it once!
+    const { data: created, error: insertError } = await supabase
+      .from(TABLES.categories)
+      .insert({
+        name: 'Other',
+        slug: 'other',
+        active: true,
+        deleted_at: null,
+        image: '',
+      })
+      .select()
+      .single();
+
+    if (insertError) {
+      const { data: recheck } = await supabase
+        .from(TABLES.categories)
+        .select('*')
+        .eq('slug', 'other')
+        .maybeSingle();
+      if (recheck) return mapCategoryRow(recheck);
+      console.warn('Could not insert default other category:', insertError);
+      return fallbackOther;
+    }
+
+    slugToUuid.clear();
+    return mapCategoryRow(created);
+  } catch (err) {
+    console.warn('ensureDefaultOtherCategory error:', err);
+    return fallbackOther;
+  }
+}
+
 export interface ListCategoriesOptions {
   includeDeleted?: boolean;
   onlyDeleted?: boolean; // for the Trash view
@@ -490,7 +594,26 @@ export interface ListCategoriesOptions {
 }
 
 export async function listCategories(options: ListCategoriesOptions = {}): Promise<DBCategory[]> {
-  requireConfigured();
+  const fallbackOther: DBCategory = {
+    id: 'other',
+    slug: 'other',
+    name: 'Other',
+    active: true,
+    item_count: 0,
+    image: '',
+    deleted_at: null,
+  };
+
+  if (!isSupabaseConfigured()) {
+    return options.onlyDeleted ? [] : [fallbackOther];
+  }
+
+  let defaultOtherCat: DBCategory | null = null;
+  try {
+    defaultOtherCat = await ensureDefaultOtherCategory();
+  } catch (err) {
+    console.warn('Could not ensure default category:', err);
+  }
 
   let query = supabase.from(TABLES.categories).select('*').order('name', { ascending: true });
   if (options.onlyDeleted) query = query.not('deleted_at', 'is', null);
@@ -499,13 +622,43 @@ export async function listCategories(options: ListCategoriesOptions = {}): Promi
 
   const { data, error } = await query;
   if (error) throw parseSupabaseError(error);
-  return (data || []).map(mapCategoryRow);
+
+  let list = (data || []).map(mapCategoryRow);
+
+  if (options.onlyDeleted) {
+    // The default 'Other' category can never be deleted or shown in trash
+    return list.filter((c) => c.slug !== 'other' && c.id !== 'other');
+  }
+
+  // Ensure default "Other" is always present in list
+  const hasOther = list.some((c) => c.slug === 'other' || c.id === 'other');
+  if (!hasOther && defaultOtherCat) {
+    list.push(defaultOtherCat);
+  }
+
+  return list;
 }
 
 /** For the public website: only visible categories. */
 export const listPublicCategories = () => listCategories({ activeOnly: true });
 
 export async function getCategory(idOrSlug: string): Promise<DBCategory | null> {
+  if (isDefaultOtherCategory(idOrSlug)) {
+    if (!isSupabaseConfigured()) {
+      return {
+        id: 'other',
+        slug: 'other',
+        name: 'Other',
+        active: true,
+        item_count: 0,
+        image: '',
+        deleted_at: null,
+      };
+    }
+    const ensured = await ensureDefaultOtherCategory();
+    return ensured;
+  }
+
   requireConfigured();
   const { data, error } = await supabase
     .from(TABLES.categories)
@@ -528,6 +681,10 @@ export async function createCategory(category: Partial<DBCategory>): Promise<DBC
     const name = category.name?.trim();
     if (!name) throw new Error('Category name is required.');
     const typedSlug = category.slug?.trim();
+
+    if ((typedSlug && typedSlug.toLowerCase() === 'other') || name.toLowerCase() === 'other') {
+      throw new Error("Category 'Other' with slug 'other' is a permanent default category and cannot be recreated.");
+    }
 
     const build = (slug: string) => {
       const payload: Record<string, any> = { name, slug, active: category.active ?? true, deleted_at: null };
@@ -552,6 +709,14 @@ export async function createCategory(category: Partial<DBCategory>): Promise<DBC
 /** UPDATE a category. Only the fields you pass are changed. */
 export async function updateCategory(id: string, updates: Partial<DBCategory>): Promise<DBCategory> {
   requireConfigured();
+
+  if (isDefaultOtherCategory(id) || (updates.slug && updates.slug.toLowerCase() === 'other')) {
+    throw new Error("Default category 'Other' cannot be edited.");
+  }
+  const existing = await getCategory(id);
+  if (existing && isDefaultOtherCategory(existing)) {
+    throw new Error("Default category 'Other' cannot be edited.");
+  }
 
   return serializeWrite(async () => {
     const payload: Record<string, any> = {};
@@ -581,6 +746,15 @@ export async function updateCategory(id: string, updates: Partial<DBCategory>): 
 
 async function setCategoryColumns(id: string, patch: Record<string, any>): Promise<boolean> {
   requireConfigured();
+
+  if (isDefaultOtherCategory(id)) {
+    throw new Error("Default category 'Other' cannot be modified or deleted.");
+  }
+  const existing = await getCategory(id);
+  if (existing && isDefaultOtherCategory(existing)) {
+    throw new Error("Default category 'Other' cannot be modified or deleted.");
+  }
+
   return serializeWrite(async () => {
     const { data, error } = await supabase.from(TABLES.categories).update(patch).eq('id', id).select('id');
     if (error) throw parseSupabaseError(error);
@@ -591,7 +765,16 @@ async function setCategoryColumns(id: string, patch: Record<string, any>): Promi
 }
 
 /** SOFT DELETE: hides the category (deleted_at = now). Can be restored. */
-export const softDeleteCategory = (id: string) => setCategoryColumns(id, { deleted_at: new Date().toISOString() });
+export const softDeleteCategory = async (id: string) => {
+  if (isDefaultOtherCategory(id)) {
+    throw new Error("Default category 'Other' cannot be deleted.");
+  }
+  const existing = await getCategory(id);
+  if (existing && isDefaultOtherCategory(existing)) {
+    throw new Error("Default category 'Other' cannot be deleted.");
+  }
+  return setCategoryColumns(id, { deleted_at: new Date().toISOString() });
+};
 
 /** RESTORE from trash. */
 export const restoreCategory = (id: string) => setCategoryColumns(id, { deleted_at: null });
@@ -602,7 +785,13 @@ export const toggleCategoryActive = (id: string, active: boolean) => setCategory
 /** PERMANENT DELETE: removes the row and its image file. Items in it become uncategorised. */
 export async function permanentDeleteCategory(id: string): Promise<boolean> {
   requireConfigured();
+  if (isDefaultOtherCategory(id)) {
+    throw new Error("Default category 'Other' cannot be deleted.");
+  }
   const existing = await getCategory(id);
+  if (existing && isDefaultOtherCategory(existing)) {
+    throw new Error("Default category 'Other' cannot be deleted.");
+  }
   await serializeWrite(async () => {
     const { error } = await supabase.from(TABLES.categories).delete().eq('id', id);
     if (error) throw parseSupabaseError(error);
@@ -743,7 +932,8 @@ export async function updateItem(id: string, updates: Partial<DBItem>): Promise<
       return current;
     }
 
-    const { data, error } = await supabase.from(TABLES.items).update(payload).eq('id', id).select().maybeSingle();
+    const idField = isUUID(id) ? 'id' : 'slug';
+    const { data, error } = await supabase.from(TABLES.items).update(payload).eq(idField, id).select().maybeSingle();
     if (error) throw parseSupabaseError(error);
     if (!data) throw notFoundError('item', id);
     return mapItemRow(data);
@@ -793,6 +983,19 @@ export async function saveItem(item: Partial<DBItem>): Promise<{ data: DBItem; i
       if (err?.code !== 'ROW_NOT_FOUND') throw err; // id is new: fall through and create it
     }
   }
+
+  // If item.slug exists, check if row exists in Supabase to update it
+  if (item.slug) {
+    try {
+      const existing = await getItem(item.slug);
+      if (existing) {
+        return { data: await updateItem(existing.id, item), isSupabaseSynced: true };
+      }
+    } catch {
+      // ignore and continue to create
+    }
+  }
+
   return { data: await createItem(item), isSupabaseSynced: true };
 }
 

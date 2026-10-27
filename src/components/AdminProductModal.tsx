@@ -53,16 +53,42 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
 
   const [tagInput, setTagInput] = useState('');
 
+  // Helper to resolve any category reference (UUID, slug, or name) to a valid category ID
+  const resolveSelectedCategoryId = (val?: string | null): string => {
+    if (!val || val === 'all') {
+      const firstValid = categories.find((c) => c.id !== 'all' && !c.deleted_at);
+      return firstValid?.id || 'other';
+    }
+    const matched = categories.find(
+      (c) =>
+        c.id !== 'all' &&
+        (c.id === val ||
+          c.slug === val ||
+          c.name.toLowerCase() === String(val).toLowerCase())
+    );
+    if (matched) return matched.id;
+    const firstValid = categories.find((c) => c.id !== 'all' && !c.deleted_at);
+    return firstValid?.id || val;
+  };
+
   useEffect(() => {
     if (initialProduct) {
-      setFormData({ ...initialProduct });
+      const rawCat = initialProduct.category || (initialProduct as any).group_id;
+      const resolvedCatId = resolveSelectedCategoryId(rawCat);
+      setFormData({
+        ...initialProduct,
+        category: resolvedCatId as CategoryId,
+        group_id: resolvedCatId,
+      });
       setTagInput(initialProduct.tags?.join(', ') || '');
       setUploadedImageName(initialProduct.name ? `${initialProduct.name} Photo` : 'Existing Product Image');
       setImageError('');
     } else {
+      const defaultCatId = resolveSelectedCategoryId(null);
       setFormData({
         name: '',
-        category: categories.length > 1 ? categories[1].id : 'dining',
+        category: defaultCatId as CategoryId,
+        group_id: defaultCatId,
         price: 24999,
         originalPrice: 32000,
         description: '',
@@ -167,14 +193,14 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
       initialProduct?.id
     );
 
-    const validCategories = categories.filter((cat) => cat.id !== 'all' && !cat.deleted_at);
-    const resolvedCategory = formData.category || (validCategories[0]?.id || '');
+    const resolvedCategoryId = resolveSelectedCategoryId(formData.category || (formData as any)?.group_id);
 
     const completeProduct: FurnitureItem = {
       id: initialProduct?.id || `product-${Date.now()}`,
       slug: generatedSlug,
       name: productNameTrimmed,
-      category: resolvedCategory as CategoryId,
+      category: resolvedCategoryId as CategoryId,
+      group_id: resolvedCategoryId,
       price: Number(formData.price) || 9999,
       originalPrice: formData.originalPrice ? Number(formData.originalPrice) : undefined,
       description: formData.description || 'High quality furniture made with premium materials.',
@@ -190,7 +216,7 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
       inStock: formData.inStock ?? true,
       isActive: formData.isActive ?? true,
       warranty: formData.warranty || '5 Years Warranty',
-      tags: tagsArray.length > 0 ? tagsArray : ['furniture', formData.category || 'decor'],
+      tags: tagsArray.length > 0 ? tagsArray : ['furniture', resolvedCategoryId || 'decor'],
     };
 
     onSave(completeProduct);
@@ -416,10 +442,15 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
               </label>
               <select
                 required
-                value={formData.category || (categories.filter((cat) => cat.id !== 'all' && !cat.deleted_at)[0]?.id || '')}
-                onChange={(e) =>
-                  setFormData({ ...formData, category: e.target.value as CategoryId })
-                }
+                value={resolveSelectedCategoryId(formData.category || (formData as any)?.group_id)}
+                onChange={(e) => {
+                  const chosenCatId = e.target.value;
+                  setFormData((prev) => ({
+                    ...prev,
+                    category: chosenCatId as CategoryId,
+                    group_id: chosenCatId,
+                  }));
+                }}
                 className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-gray-900 focus:outline-none focus:border-[#E11D2A] focus:ring-1 focus:ring-[#E11D2A]"
               >
                 {categories
