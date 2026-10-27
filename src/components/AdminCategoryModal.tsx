@@ -30,32 +30,35 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
     isActive: true,
   });
 
-  const categoryPresets = [
-    { label: 'Living Room', url: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=400&q=80' },
-    { label: 'Bedroom', url: 'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=400&q=80' },
-    { label: 'Dining', url: 'https://images.unsplash.com/photo-1617806118233-18e1de247200?auto=format&fit=crop&w=400&q=80' },
-    { label: 'Office', url: 'https://images.unsplash.com/photo-1580481077195-c546a9a0f02e?auto=format&fit=crop&w=400&q=80' },
-    { label: 'Outdoor', url: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=400&q=80' },
-    { label: 'Decor', url: 'https://images.unsplash.com/photo-1485955900006-10f4d324d411?auto=format&fit=crop&w=400&q=80' },
-  ];
-
   useEffect(() => {
     if (initialCategory) {
       setFormData({ ...initialCategory, isActive: initialCategory.isActive ?? true });
-      setUploadedImageName('Existing Category Image');
+      setUploadedImageName(initialCategory.name ? `${initialCategory.name} Photo` : 'Existing Category Image');
       setImageError('');
     } else {
       setFormData({
         name: '',
-        image: categoryPresets[0].url,
+        image: '',
         isActive: true,
       });
-      setUploadedImageName('Default Sample Photo');
+      setUploadedImageName('');
       setImageError('');
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   }, [initialCategory, isOpen]);
 
   if (!isOpen) return null;
+
+  const handleRemoveImage = () => {
+    setFormData((prev) => ({ ...prev, image: '' }));
+    setUploadedImageName('');
+    setImageError('');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   const handleFile = async (file: File) => {
     if (!file.type.startsWith('image/')) {
@@ -154,45 +157,55 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="overflow-y-auto p-4 sm:p-6 space-y-4 flex-1">
-          {/* Active / Hidden Status Banner */}
-          <div
-            className={`p-3 sm:p-4 rounded-xl sm:rounded-2xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 transition-colors ${
-              formData.isActive !== false
-                ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                : 'bg-amber-50 border-amber-200 text-amber-900'
-            }`}
-          >
-            <div className="flex items-center gap-2.5">
-              <div
-                className={`w-3 h-3 rounded-full flex-shrink-0 ${
-                  formData.isActive !== false
-                    ? 'bg-emerald-500 ring-4 ring-emerald-200'
-                    : 'bg-amber-500 ring-4 ring-amber-200'
-                }`}
-              />
-              <div>
-                <span className="font-bold text-xs sm:text-sm block">
-                  Status: {formData.isActive !== false ? 'Active (Public)' : 'Hidden / Deactivated'}
-                </span>
-                <span className="text-[10px] sm:text-[11px] opacity-80 block">
-                  {formData.isActive !== false
-                    ? 'Visible in store category grid & navigation'
-                    : 'Hidden from public store category grid'}
+          {/* Active / Inactive Status Field */}
+          <div className="bg-gray-50/90 border border-gray-200 rounded-2xl p-3.5 sm:p-4 flex items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <label className="text-xs font-bold text-gray-800 uppercase tracking-wider">
+                  Active / Inactive
+                </label>
+                <span
+                  className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                    formData.isActive !== false
+                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                      : 'bg-gray-200 text-gray-700 border border-gray-300'
+                  }`}
+                >
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${
+                      formData.isActive !== false ? 'bg-emerald-500' : 'bg-gray-400'
+                    }`}
+                  />
+                  {formData.isActive !== false ? 'Active' : 'Inactive'}
                 </span>
               </div>
+              <p className="text-[11px] sm:text-xs text-gray-500">
+                {formData.isActive !== false
+                  ? 'Active (Visible to customers in store)'
+                  : 'Inactive (Hidden from customers)'}
+              </p>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setFormData({ ...formData, isActive: formData.isActive === false ? true : false })}
-              className={`w-full sm:w-auto px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border text-center ${
-                formData.isActive !== false
-                  ? 'bg-white border-emerald-300 text-emerald-700 hover:bg-emerald-100'
-                  : 'bg-white border-amber-300 text-amber-700 hover:bg-amber-100'
-              }`}
-            >
-              {formData.isActive !== false ? 'Deactivate / Hide' : 'Activate Category'}
-            </button>
+            {/* Toggle Switch Button */}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={formData.isActive !== false}
+                onClick={() => setFormData({ ...formData, isActive: formData.isActive === false ? true : false })}
+                className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 ease-in-out p-0.5 focus:outline-none focus:ring-2 focus:ring-red-500/20 select-none ${
+                  formData.isActive !== false ? 'bg-emerald-600' : 'bg-gray-300'
+                }`}
+                title={`Status: ${formData.isActive !== false ? 'Active' : 'Inactive'}. Click to toggle.`}
+              >
+                <span className="sr-only">Toggle Active status</span>
+                <span
+                  className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                    formData.isActive !== false ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
           </div>
 
           {/* Category Name */}
@@ -257,7 +270,7 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
                     </button>
                     <button
                       type="button"
-                      onClick={() => setFormData({ ...formData, image: '' })}
+                      onClick={handleRemoveImage}
                       className="border border-red-200 text-red-600 hover:bg-red-50 px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer"
                     >
                       <Trash2 className="w-3 h-3" />
@@ -297,25 +310,6 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
                 <span>{imageError}</span>
               </div>
             )}
-
-            {/* Presets */}
-            <div className="flex items-center gap-1.5 mt-2 overflow-x-auto no-scrollbar pb-1">
-              <span className="text-[10px] text-gray-400 font-semibold flex-shrink-0">Presets:</span>
-              {categoryPresets.map((p) => (
-                <button
-                  key={p.label}
-                  type="button"
-                  onClick={() => {
-                    setFormData((prev) => ({ ...prev, image: p.url }));
-                    setUploadedImageName(p.label);
-                    setImageError('');
-                  }}
-                  className="text-[10px] px-2 py-1 rounded-lg border border-gray-200 hover:border-red-300 hover:bg-red-50 text-gray-600 cursor-pointer whitespace-nowrap"
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
           </div>
         </form>
 

@@ -19,6 +19,7 @@ import {
   ArrowDown,
   Check,
   X,
+  LogOut,
 } from 'lucide-react';
 import { Category, FurnitureItem } from '../types';
 import { HomeCraftLogo } from './HomeCraftLogo';
@@ -46,6 +47,7 @@ interface AdminViewProps {
   isSyncingToDb: boolean;
   lastSyncedAt: string | null;
   onGoToStore: () => void;
+  onSignOut?: () => void;
 }
 
 export const AdminView: React.FC<AdminViewProps> = ({
@@ -63,6 +65,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   isSyncingToDb,
   lastSyncedAt,
   onGoToStore,
+  onSignOut,
 }) => {
   const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'trash'>('products');
   const [searchTerm, setSearchTerm] = useState('');
@@ -179,6 +182,17 @@ export const AdminView: React.FC<AdminViewProps> = ({
               <ExternalLink className="w-3.5 h-3.5 text-emerald-400" />
               <span>Exit to Store</span>
             </button>
+
+            {onSignOut && (
+              <button
+                onClick={onSignOut}
+                className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 px-3 py-1.5 sm:py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Sign Out of Admin"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Sign Out</span>
+              </button>
+            )}
           </div>
         </div>
       </header>

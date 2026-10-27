@@ -31,12 +31,9 @@ import {
   mapFurnitureItemToDBItem,
   mapCategoryToDBGroup,
   isSupabaseConfigured,
-  getAdminSession,
-  onAuthChange,
   generateUniqueSlug,
 } from './lib/data';
 import { NICHE_CONFIG } from './config/niche';
-import { AdminLogin } from './components/AdminLogin';
 
 export default function App() {
   const [currentView, setCurrentView] = useState<'home' | 'search' | 'admin'>('home');
@@ -73,24 +70,7 @@ export default function App() {
     loadData();
   }, []);
 
-  // Auth state using backend service from src/lib/data.ts
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
-  useEffect(() => {
-    getAdminSession().then(({ session }) => {
-      setIsAuthenticated(!!session);
-    });
-
-    const subscription = onAuthChange((_event, session) => {
-      setIsAuthenticated(!!session);
-    });
-
-    return () => {
-      if (subscription && typeof subscription.unsubscribe === 'function') {
-        subscription.unsubscribe();
-      }
-    };
-  }, []);
 
   const isConfigured = isSupabaseConfigured();
 
@@ -403,30 +383,24 @@ export default function App() {
         </div>
       )}
 
-      {/* Conditional Rendering: Admin View vs Store View */}
+      {/* Direct Rendering: Admin View vs Store View (Authentication bypassed) */}
       {currentView === 'admin' ? (
-        isAuthenticated === null ? (
-          <div className="min-h-screen flex items-center justify-center">Loading...</div>
-        ) : isAuthenticated ? (
-          <AdminView
-            products={products}
-            categories={categories}
-            onAddProduct={handleOpenAddProduct}
-            onEditProduct={handleOpenEditProduct}
-            onDeleteProduct={handleDeleteProduct}
-            onToggleActive={handleToggleActiveProduct}
-            onAddCategory={handleOpenAddCategory}
-            onEditCategory={handleOpenEditCategory}
-            onDeleteCategory={handleDeleteCategory}
-            onToggleActiveCategory={handleToggleActiveCategory}
-            onStoreToDatabase={loadData}
-            isSyncingToDb={false}
-            lastSyncedAt={null}
-            onGoToStore={() => setCurrentView('home')}
-          />
-        ) : (
-          <AdminLogin onLogin={() => setIsAuthenticated(true)} />
-        )
+        <AdminView
+          products={products}
+          categories={categories}
+          onAddProduct={handleOpenAddProduct}
+          onEditProduct={handleOpenEditProduct}
+          onDeleteProduct={handleDeleteProduct}
+          onToggleActive={handleToggleActiveProduct}
+          onAddCategory={handleOpenAddCategory}
+          onEditCategory={handleOpenEditCategory}
+          onDeleteCategory={handleDeleteCategory}
+          onToggleActiveCategory={handleToggleActiveCategory}
+          onStoreToDatabase={loadData}
+          isSyncingToDb={false}
+          lastSyncedAt={null}
+          onGoToStore={() => setCurrentView('home')}
+        />
       ) : (
         <>
           <Header
@@ -513,6 +487,7 @@ export default function App() {
 
       {/* Admin Add/Edit Product Modal */}
       <AdminProductModal
+        key={isAdminProductModalOpen ? (editingAdminProduct?.id || 'new-product') : 'closed-product'}
         isOpen={isAdminProductModalOpen}
         onClose={() => {
           setIsAdminProductModalOpen(false);
@@ -526,6 +501,7 @@ export default function App() {
 
       {/* Admin Add/Edit Category Modal */}
       <AdminCategoryModal
+        key={isAdminCategoryModalOpen ? (editingAdminCategory?.id || 'new-category') : 'closed-category'}
         isOpen={isAdminCategoryModalOpen}
         onClose={() => {
           setIsAdminCategoryModalOpen(false);

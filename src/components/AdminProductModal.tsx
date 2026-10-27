@@ -53,20 +53,11 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
 
   const [tagInput, setTagInput] = useState('');
 
-  const samplePresets = [
-    { label: 'Dining Table', url: 'https://images.unsplash.com/photo-1617806118233-18e1de247200?auto=format&fit=crop&w=800&q=80' },
-    { label: '3-Seater Sofa', url: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=800&q=80' },
-    { label: 'King Bed', url: 'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=800&q=80' },
-    { label: 'Office Chair', url: 'https://images.unsplash.com/photo-1580481077195-c546a9a0f02e?auto=format&fit=crop&w=800&q=80' },
-    { label: 'Wardrobe', url: 'https://images.unsplash.com/photo-1595428774223-ef52624120d2?auto=format&fit=crop&w=800&q=80' },
-    { label: 'TV Unit', url: 'https://images.unsplash.com/photo-1594026112284-02bb6f3352fe?auto=format&fit=crop&w=800&q=80' },
-  ];
-
   useEffect(() => {
     if (initialProduct) {
       setFormData({ ...initialProduct });
       setTagInput(initialProduct.tags?.join(', ') || '');
-      setUploadedImageName('Existing Product Image');
+      setUploadedImageName(initialProduct.name ? `${initialProduct.name} Photo` : 'Existing Product Image');
       setImageError('');
     } else {
       setFormData({
@@ -76,7 +67,7 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
         originalPrice: 32000,
         description: '',
         longDescription: '',
-        image: samplePresets[0].url,
+        image: '',
         dimensions: {
           width: '60 inches',
           depth: '36 inches',
@@ -93,9 +84,12 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
         warranty: '5 Years Frame Warranty',
         tags: ['furniture', 'modern'],
       });
-      setUploadedImageName('Default Sample Photo');
+      setUploadedImageName('');
       setTagInput('furniture, modern');
       setImageError('');
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   }, [initialProduct, isOpen, categories]);
 
@@ -224,45 +218,55 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
 
         {/* Scrollable Form Body */}
         <form onSubmit={handleSubmit} className="overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-5 flex-1">
-          {/* Active / Hidden Status Banner */}
-          <div
-            className={`p-3 sm:p-4 rounded-xl sm:rounded-2xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 transition-colors ${
-              formData.isActive
-                ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                : 'bg-amber-50 border-amber-200 text-amber-900'
-            }`}
-          >
-            <div className="flex items-center gap-2.5">
-              <div
-                className={`w-3 h-3 rounded-full flex-shrink-0 ${
-                  formData.isActive
-                    ? 'bg-emerald-500 ring-4 ring-emerald-200'
-                    : 'bg-amber-500 ring-4 ring-amber-200'
-                }`}
-              />
-              <div>
-                <span className="font-bold text-xs sm:text-sm block">
-                  Status: {formData.isActive ? 'Active (Public)' : 'Hidden / Deactivated'}
-                </span>
-                <span className="text-[10px] sm:text-[11px] opacity-80 block">
-                  {formData.isActive
-                    ? 'Visible in public catalogue'
-                    : 'Hidden from public catalogue & search'}
+          {/* Active / Inactive Status Field */}
+          <div className="bg-gray-50/90 border border-gray-200 rounded-2xl p-3.5 sm:p-4 flex items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <label className="text-xs font-bold text-gray-800 uppercase tracking-wider">
+                  Active / Inactive
+                </label>
+                <span
+                  className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                    Boolean(formData.isActive)
+                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                      : 'bg-gray-200 text-gray-700 border border-gray-300'
+                  }`}
+                >
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${
+                      Boolean(formData.isActive) ? 'bg-emerald-500' : 'bg-gray-400'
+                    }`}
+                  />
+                  {Boolean(formData.isActive) ? 'Active' : 'Inactive'}
                 </span>
               </div>
+              <p className="text-[11px] sm:text-xs text-gray-500">
+                {Boolean(formData.isActive)
+                  ? 'Active (Visible to customers in the catalog)'
+                  : 'Inactive (Hidden from customers)'}
+              </p>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setFormData({ ...formData, isActive: !formData.isActive })}
-              className={`w-full sm:w-auto px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border text-center ${
-                formData.isActive
-                  ? 'bg-white border-emerald-300 text-emerald-700 hover:bg-emerald-100'
-                  : 'bg-white border-amber-300 text-amber-700 hover:bg-amber-100'
-              }`}
-            >
-              {formData.isActive ? 'Deactivate / Hide' : 'Activate Product'}
-            </button>
+            {/* Toggle Switch Button */}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={Boolean(formData.isActive)}
+                onClick={() => setFormData({ ...formData, isActive: !formData.isActive })}
+                className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 ease-in-out p-0.5 focus:outline-none focus:ring-2 focus:ring-red-500/20 select-none ${
+                  Boolean(formData.isActive) ? 'bg-emerald-600' : 'bg-gray-300'
+                }`}
+                title={`Status: ${Boolean(formData.isActive) ? 'Active' : 'Inactive'}. Click to toggle.`}
+              >
+                <span className="sr-only">Toggle Active status</span>
+                <span
+                  className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                    Boolean(formData.isActive) ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
           </div>
 
           {/* Product Image Upload Section */}
@@ -385,27 +389,6 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
                 <span>{imageError}</span>
               </div>
             )}
-
-            {/* Quick Sample Presets */}
-            <div className="flex items-center gap-1.5 mt-2.5 overflow-x-auto no-scrollbar pb-1">
-              <span className="text-[10px] text-gray-400 font-semibold flex-shrink-0">
-                Or presets:
-              </span>
-              {samplePresets.map((p) => (
-                <button
-                  key={p.label}
-                  type="button"
-                  onClick={() => {
-                    setFormData((prev) => ({ ...prev, image: p.url }));
-                    setUploadedImageName(p.label);
-                    setImageError('');
-                  }}
-                  className="text-[10px] px-2 py-1 rounded-lg border border-gray-200 hover:border-red-300 hover:bg-red-50 text-gray-600 transition-colors cursor-pointer whitespace-nowrap"
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
           </div>
 
           {/* Name & Category */}
