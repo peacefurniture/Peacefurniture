@@ -262,7 +262,7 @@ export default function App() {
       });
 
       await loadData();
-      showToast(`✅ ${isEdit ? 'Updated' : 'Added'} "${product.name}" in Supabase DB!`);
+      showToast(`✅ ${isEdit ? 'Updated' : 'Added'} "${product.name}" in catalogue!`);
     } catch (err: any) {
       showToast(`Error: ${err.message}`);
     }
@@ -377,7 +377,7 @@ export default function App() {
       });
 
       await loadData();
-      showToast(`✅ ${isEdit ? 'Updated' : 'Added'} "${category.name}" in Supabase DB!`);
+      showToast(`✅ ${isEdit ? 'Updated' : 'Added'} "${category.name}" in catalogue!`);
     } catch (err: any) {
       showToast(`Error: ${err.message}`);
     }
@@ -516,18 +516,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#FAFAFA] text-gray-900 flex flex-col font-['Plus_Jakarta_Sans',sans-serif]">
-      {/* Missing Supabase Env Warning Banner */}
-      {!isConfigured && (
-        <div className="bg-amber-50 border-b border-amber-200 text-amber-900 px-4 py-2.5 text-xs flex items-center justify-between gap-2 z-50">
-          <div className="flex items-center gap-2 max-w-5xl mx-auto">
-            <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
-            <span>
-              <strong>Supabase Setup Notice:</strong> <code>VITE_SUPABASE_URL</code> or <code>VITE_SUPABASE_ANON_KEY</code> missing in <code>.env</code>.
-            </span>
-          </div>
-        </div>
-      )}
-
       {/* Toast Notification Alert */}
       {toastMessage && (
         <div className="fixed top-4 right-4 z-50 bg-gray-900 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 text-xs font-bold border border-gray-700 animate-in fade-in slide-in-from-top-2">

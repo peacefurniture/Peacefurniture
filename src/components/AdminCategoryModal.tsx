@@ -80,7 +80,7 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
       setUploadedImageName(file.name);
     } catch (err: any) {
       console.error('Upload Error:', err);
-      setImageError(err.message || 'Failed to upload image. Ensure an "Images" bucket exists in Supabase.');
+      setImageError(err.message || 'Failed to process image. Please try another image file.');
     } finally {
       setIsUploading(false);
     }
@@ -322,7 +322,7 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
                   <Upload className="w-6 h-6 text-[#E11D2A] mx-auto mb-2" />
                 )}
                 <p className="font-bold text-gray-900 text-xs mb-1">
-                  {isUploading ? 'Uploading to Supabase...' : 'Tap to upload category image'}
+                  {isUploading ? 'Processing image...' : 'Tap to upload category image'}
                 </p>
                 <p className="text-[11px] text-gray-400">PNG, JPG, WEBP under 5MB</p>
               </div>

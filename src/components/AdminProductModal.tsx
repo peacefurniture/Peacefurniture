@@ -142,7 +142,7 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
       setUploadedImageName(file.name);
     } catch (err: any) {
       console.error('Upload Error:', err);
-      setImageError(err.message || 'Failed to upload image to Supabase Storage. Ensure an "Images" bucket exists and has public select permissions.');
+      setImageError(err.message || 'Failed to process image. Please try another image file.');
     } finally {
       setIsUploading(false);
     }
@@ -398,7 +398,7 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
                   )}
                 </div>
                 <h4 className="font-extrabold text-gray-900 text-xs sm:text-sm mb-1">
-                  {isUploading ? 'Uploading image to Supabase...' : 'Tap to upload photo from your phone or PC'}
+                  {isUploading ? 'Processing image...' : 'Tap to upload photo from your phone or PC'}
                 </h4>
                 <p className="text-[11px] text-gray-500">
                   Accepts PNG, JPG, JPEG, WEBP files

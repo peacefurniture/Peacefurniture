@@ -41,7 +41,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin }) => {
       return;
     }
 
-    // Attempt Supabase Auth login
+    // Authenticate admin credentials
     try {
       const { session, error: authError } = await signInAdmin(email, password);
 

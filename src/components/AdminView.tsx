@@ -25,7 +25,6 @@ import {
 import { Category, FurnitureItem } from '../types';
 import { HomeCraftLogo } from './HomeCraftLogo';
 import { NICHE_CONFIG } from '../config/niche';
-import { SupabaseConfigModal } from './SupabaseConfigModal';
 import {
   isSupabaseConfigured,
   restoreItem,
@@ -154,9 +153,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
   }, [nonDeletedProducts, searchTerm, selectedCategoryFilter, visibilityFilter]);
 
 
-  const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
-  const isConnected = isSupabaseConfigured();
-
   return (
     <div className="min-h-screen bg-[#F5F6F8] text-gray-900 pb-24 sm:pb-16 font-['Plus_Jakarta_Sans',sans-serif]">
       {/* Top Admin Navigation Header */}
@@ -177,18 +173,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-3">
-            <button
-              onClick={() => setIsSupabaseModalOpen(true)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer border ${
-                isConnected
-                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20'
-                  : 'bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20'
-              }`}
-            >
-              <Database className="w-3.5 h-3.5" />
-              <span>{isConnected ? 'Supabase Connected' : 'Connect Supabase'}</span>
-            </button>
-
             <button
               onClick={onGoToStore}
               className="bg-white/10 hover:bg-white/15 text-white px-3 py-1.5 sm:py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
@@ -235,8 +219,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
               }`}
             >
-              <Database className="w-4 h-4" />
-              <span>{isSyncingToDb ? 'Syncing to Supabase...' : 'Save & Sync Cloud DB'}</span>
+              <Save className="w-4 h-4" />
+              <span>{isSyncingToDb ? 'Saving Catalogue...' : 'Save & Refresh'}</span>
             </button>
 
             {activeTab === 'products' ? (
@@ -776,16 +760,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
         )}
 
       </div>
-
-      {/* Supabase Connection & Credentials Modal */}
-      <SupabaseConfigModal
-        isOpen={isSupabaseModalOpen}
-        onClose={() => setIsSupabaseModalOpen(false)}
-        onConnected={() => {
-          setIsSupabaseModalOpen(false);
-          onStoreToDatabase();
-        }}
-      />
     </div>
   );
 };
