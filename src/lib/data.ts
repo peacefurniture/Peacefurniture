@@ -132,6 +132,13 @@ export function isDefaultOtherCategory(
   return slug === 'other' || id === 'other' || name === 'other';
 }
 
+export function sortCategoriesWithOtherLast<T extends { id?: string; slug?: string; name?: string }>(list: T[]): T[] {
+  if (!Array.isArray(list)) return [];
+  const normal = list.filter((c) => !isDefaultOtherCategory(c));
+  const other = list.filter((c) => isDefaultOtherCategory(c));
+  return [...normal, ...other];
+}
+
 // ============================================================================
 // PERSISTENT LOCAL CATALOGUE STORAGE
 // ============================================================================
@@ -223,7 +230,7 @@ function readStoredCategories(): DBCategory[] {
             deleted_at: null,
           });
         }
-        return normalized;
+        return sortCategoriesWithOtherLast(normalized);
       }
     }
   } catch {
@@ -231,7 +238,7 @@ function readStoredCategories(): DBCategory[] {
   }
 
   writeStoredCategories(INITIAL_CATEGORIES);
-  return INITIAL_CATEGORIES;
+  return sortCategoriesWithOtherLast(INITIAL_CATEGORIES);
 }
 
 function writeStoredCategories(categories: DBCategory[]): void {
@@ -475,11 +482,11 @@ export async function listCategories(options: ListCategoriesOptions = {}): Promi
       const { data, error } = await query;
       if (!error && Array.isArray(data) && data.length > 0) {
         // Sync local cache
-        writeStoredCategories(data);
-        return data.map((cat: DBCategory) => ({
+        const mapped = data.map((cat: DBCategory) => ({
           ...cat,
           image: cat.image || (isDefaultOtherCategory(cat) ? DEFAULT_OTHER_CATEGORY_IMAGE : ''),
         }));
+        return sortCategoriesWithOtherLast(mapped);
       }
     } catch (err) {
       console.warn('Supabase fetch failed, falling back to local storage database:', err);
@@ -505,7 +512,7 @@ export async function listCategories(options: ListCategoriesOptions = {}): Promi
   });
 
   if (options.onlyDeleted) {
-    return categories.filter((c) => c.deleted_at && !isDefaultOtherCategory(c));
+    return sortCategoriesWithOtherLast(categories.filter((c) => c.deleted_at && !isDefaultOtherCategory(c)));
   }
   if (!options.includeDeleted) {
     categories = categories.filter((c) => !c.deleted_at);
@@ -514,7 +521,7 @@ export async function listCategories(options: ListCategoriesOptions = {}): Promi
     categories = categories.filter((c) => c.active !== false);
   }
 
-  return categories;
+  return sortCategoriesWithOtherLast(categories);
 }
 
 export const listPublicCategories = () => listCategories({ activeOnly: true });

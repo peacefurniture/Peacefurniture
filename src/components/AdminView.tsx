@@ -32,6 +32,7 @@ import {
   purgeItemPermanently,
   purgeGroupPermanently,
   DEFAULT_OTHER_CATEGORY_IMAGE,
+  sortCategoriesWithOtherLast,
 } from '../lib/data';
 
 interface AdminViewProps {
@@ -107,7 +108,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
   // Filtered Categories
   const filteredCategories = useMemo(() => {
-    return categories
+    const list = categories
       .filter((cat) => cat.id !== 'all' && !cat.deleted_at)
       .filter((cat) => {
         const isActive = cat.isActive !== false;
@@ -118,6 +119,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
         const q = categorySearchTerm.toLowerCase().trim();
         return cat.name.toLowerCase().includes(q) || cat.id.toLowerCase().includes(q);
       });
+    return sortCategoriesWithOtherLast(list);
   }, [categories, categorySearchTerm, categoryVisibilityFilter]);
 
   // Metrics

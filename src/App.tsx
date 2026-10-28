@@ -38,6 +38,7 @@ import {
   generateUniqueSlug,
   isDefaultOtherCategory,
   DEFAULT_OTHER_CATEGORY_IMAGE,
+  sortCategoriesWithOtherLast,
 } from './lib/data';
 import { NICHE_CONFIG } from './config/niche';
 
@@ -86,7 +87,7 @@ export default function App() {
           },
         ];
       }
-      setGroups(resolvedGroups);
+      setGroups(sortCategoriesWithOtherLast(resolvedGroups));
       setItems(fetchedItems);
     } catch (err: any) {
       console.error('Supabase Fetch Error:', err);
@@ -99,8 +100,6 @@ export default function App() {
   useEffect(() => {
     loadData();
   }, []);
-
-
 
   const isConfigured = isSupabaseConfigured();
 
@@ -146,9 +145,10 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [currentView]);
 
-  // Active Categories for Public Store Front
+  // Active Categories for Public Store Front (with Other strictly last)
   const activeCategories = useMemo(() => {
-    return categories.filter((c) => c.isActive !== false && !c.deleted_at);
+    const list = categories.filter((c) => c.isActive !== false && !c.deleted_at);
+    return sortCategoriesWithOtherLast(list);
   }, [categories]);
 
   // PUBLIC VISIBLE PRODUCTS FOR PAGE 1 (CATALOGUE)

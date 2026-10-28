@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Category, CategoryId } from '../types';
-import { DEFAULT_OTHER_CATEGORY_IMAGE, isDefaultOtherCategory } from '../lib/data';
+import { DEFAULT_OTHER_CATEGORY_IMAGE, isDefaultOtherCategory, sortCategoriesWithOtherLast } from '../lib/data';
 
 interface CategoryGridProps {
   categories: Category[];
@@ -13,10 +13,15 @@ export const CategoryGrid: React.FC<CategoryGridProps> = ({
   selectedCategory,
   onSelectCategory,
 }) => {
+  const activeCategories = useMemo(() => {
+    const active = categories.filter((cat) => cat.isActive !== false);
+    return sortCategoriesWithOtherLast(active);
+  }, [categories]);
+
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-6 pt-4 sm:pt-6 pb-2">
       <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-12 gap-2 sm:gap-3">
-        {categories.filter((cat) => cat.isActive !== false).map((cat) => {
+        {activeCategories.map((cat) => {
           const isSelected = selectedCategory === cat.id;
           const isOther = isDefaultOtherCategory(cat);
           const imgSrc = cat.image || (isOther ? DEFAULT_OTHER_CATEGORY_IMAGE : '');
