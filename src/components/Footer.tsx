@@ -63,7 +63,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onSelectCategory }) 
           <div className="space-y-3">
             <HomeCraftLogo size="md" />
             <p className="text-xs text-gray-400 leading-relaxed max-w-sm">
-              Peace Furniture is your premier furniture catalogue destination for modern, stylish, and durable home and office furniture with AI visual discovery.
+              Peace Furniture House is your premier furniture catalogue destination for modern, stylish, and durable home and office furniture with AI visual discovery.
             </p>
           </div>
 
@@ -170,7 +170,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onSelectCategory }) 
 
         {/* Bottom copyright */}
         <div className="mt-8 pt-6 border-t border-gray-800/60 text-center text-[11px] text-gray-500">
-          © {new Date().getFullYear()} Peace Furniture Catalogue. All rights reserved.
+          © {new Date().getFullYear()} Peace Furniture House Catalogue. All rights reserved.
         </div>
       </div>
     </footer>

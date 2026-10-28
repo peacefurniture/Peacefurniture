@@ -50,9 +50,9 @@ export interface NicheConfig {
 export const NICHE_CONFIG: NicheConfig = {
   nicheId: 'furniture',
   brand: {
-    name: 'PeaceFurniture',
+    name: 'Peace Furniture House',
     tagline: 'Handcrafted Luxury & Modern Living Furniture',
-    logoSubtitle: 'Modern Living',
+    logoSubtitle: 'Furniture Catalogue',
     primaryColor: '#0F1115',
     accentColor: '#E11D2A',
   },

@@ -83,7 +83,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin }) => {
           </div>
           <div>
             <h2 className="text-2xl font-black text-gray-900 tracking-tight">Admin Portal</h2>
-            <p className="text-xs text-gray-500 mt-1">Peace Furniture Management</p>
+            <p className="text-xs text-gray-500 mt-1">Peace Furniture House Management</p>
           </div>
         </div>
 

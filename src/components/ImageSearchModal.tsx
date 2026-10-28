@@ -224,7 +224,7 @@ export const ImageSearchModal: React.FC<ImageSearchModalProps> = ({
 
         {/* Footer */}
         <div className="p-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
-          <span>Powered by Peace Furniture Visual Search</span>
+          <span>Powered by Peace Furniture House Visual Search</span>
           <button
             onClick={onClose}
             className="text-gray-700 hover:text-gray-900 font-semibold cursor-pointer"
