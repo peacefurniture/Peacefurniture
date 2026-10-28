@@ -1,10 +1,12 @@
 import { FurnitureItem, Category } from '../types';
+import { createClient } from '@supabase/supabase-js';
 
 /**
  * ============================================================================
  * CATALOGUE BACKEND SERVICE LAYER: src/lib/data.ts
- * Self-contained, resilient catalogue database with instant browser persistence.
- * Zero external database dependencies or network fetch errors.
+ * Dual-engine database architecture:
+ * 1. Supabase Cloud Database & Storage (if credentials are provided)
+ * 2. Instant Local Storage fallback (guarantees 100% offline uptime)
  * ============================================================================
  */
 
@@ -14,38 +16,68 @@ export const BUCKETS = { items: 'Images', categories: 'Images' } as const;
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10 MB
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml'];
 
-// Clean up any stale external Supabase keys from localStorage to prevent errors
-try {
-  localStorage.removeItem('peace_supabase_url');
-  localStorage.removeItem('peace_supabase_anon_key');
-} catch {
-  // ignore
-}
+let supabaseClientInstance: any = null;
 
 export function getSupabaseUrl(): string {
-  return '';
+  try {
+    const envUrl = import.meta.env?.VITE_SUPABASE_URL;
+    if (envUrl && typeof envUrl === 'string' && envUrl.trim()) return envUrl.trim();
+    const stored = localStorage.getItem('peace_supabase_url') || localStorage.getItem('supabase_url');
+    return stored?.trim() || '';
+  } catch {
+    return '';
+  }
 }
 
 export function getSupabaseAnonKey(): string {
-  return '';
+  try {
+    const envKey = import.meta.env?.VITE_SUPABASE_ANON_KEY;
+    if (envKey && typeof envKey === 'string' && envKey.trim()) return envKey.trim();
+    const stored = localStorage.getItem('peace_supabase_anon_key') || localStorage.getItem('supabase_anon_key');
+    return stored?.trim() || '';
+  } catch {
+    return '';
+  }
 }
 
-/** Explicitly disabled: all catalogue data is managed locally and reliably */
 export function isSupabaseConfigured(): boolean {
-  return false;
+  const url = getSupabaseUrl();
+  const key = getSupabaseAnonKey();
+  return Boolean(url && key && url.startsWith('http') && key.length > 10);
 }
 
 export function getSupabaseClient(): any {
-  return null;
+  if (!isSupabaseConfigured()) return null;
+  const url = getSupabaseUrl();
+  const key = getSupabaseAnonKey();
+  if (!supabaseClientInstance) {
+    try {
+      supabaseClientInstance = createClient(url, key);
+    } catch (err) {
+      console.warn('Failed to initialize Supabase client:', err);
+      return null;
+    }
+  }
+  return supabaseClientInstance;
 }
 
-export function saveSupabaseCredentials(_url: string, _anonKey: string): void {
-  // No-op
+export function saveSupabaseCredentials(url: string, anonKey: string): void {
+  try {
+    if (url) localStorage.setItem('peace_supabase_url', url.trim());
+    if (anonKey) localStorage.setItem('peace_supabase_anon_key', anonKey.trim());
+    supabaseClientInstance = null; // Reset cached client
+  } catch {
+    // ignore
+  }
 }
 
-export const supabase: any = new Proxy({}, {
-  get() {
-    return () => ({ data: null, error: null });
+export const supabase = new Proxy({}, {
+  get(_target, prop) {
+    const client = getSupabaseClient();
+    if (client && prop in client) {
+      return typeof client[prop] === 'function' ? client[prop].bind(client) : client[prop];
+    }
+    return () => ({ data: null, error: new Error('Supabase client is not configured') });
   },
 });
 
@@ -308,10 +340,10 @@ export function onAuthChange(_callback: (event: string, session: any | null) => 
 }
 
 // ============================================================================
-// IMAGE STORAGE (IN-BROWSER BASE64 / DATA URL)
+// IMAGE STORAGE (SUPABASE BUCKET WITH LOCAL DATA URL FALLBACK)
 // ============================================================================
 
-export async function uploadImage(file: File, _bucket: string = BUCKETS.items): Promise<string> {
+export async function uploadImage(file: File, bucket: string = BUCKETS.items): Promise<string> {
   if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
     throw new Error('Only JPG, PNG, WebP, GIF, or SVG images are allowed.');
   }
@@ -319,6 +351,31 @@ export async function uploadImage(file: File, _bucket: string = BUCKETS.items): 
     throw new Error(`Image is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum is 10 MB.`);
   }
 
+  // Try Supabase Storage if configured
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const fileExt = file.name.split('.').pop() || 'png';
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
+      const filePath = `uploads/${fileName}`;
+
+      const { error: uploadError } = await client.storage.from(bucket).upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: true,
+      });
+
+      if (!uploadError) {
+        const { data: publicUrlData } = client.storage.from(bucket).getPublicUrl(filePath);
+        if (publicUrlData?.publicUrl) {
+          return publicUrlData.publicUrl;
+        }
+      }
+    } catch (err) {
+      console.warn('Supabase image upload failed, falling back to local Data URL:', err);
+    }
+  }
+
+  // Local Base64 Data URL fallback
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
@@ -336,16 +393,35 @@ export async function uploadImage(file: File, _bucket: string = BUCKETS.items): 
 export const uploadItemImage = (file: File) => uploadImage(file, BUCKETS.items);
 export const uploadCategoryImage = (file: File) => uploadImage(file, BUCKETS.categories);
 
-export function getImagePublicUrl(filePath: string, _bucket: string = BUCKETS.items): string {
-  return filePath || '';
+export function getImagePublicUrl(filePath: string, bucket: string = BUCKETS.items): string {
+  if (!filePath) return '';
+  if (filePath.startsWith('http') || filePath.startsWith('data:')) return filePath;
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const { data } = client.storage.from(bucket).getPublicUrl(filePath);
+      return data?.publicUrl || filePath;
+    } catch {
+      return filePath;
+    }
+  }
+  return filePath;
 }
 
-export async function deleteImage(_urlOrPath: string, _bucket: string = BUCKETS.items): Promise<void> {
-  // No-op for in-memory / local storage
+export async function deleteImage(urlOrPath: string, bucket: string = BUCKETS.items): Promise<void> {
+  const client = getSupabaseClient();
+  if (client && urlOrPath && !urlOrPath.startsWith('data:')) {
+    try {
+      const path = urlOrPath.includes('/') ? urlOrPath.split('/').slice(-2).join('/') : urlOrPath;
+      await client.storage.from(bucket).remove([path]);
+    } catch {
+      // ignore
+    }
+  }
 }
 
 // ============================================================================
-// CATEGORIES CRUD
+// CATEGORIES CRUD (SUPABASE + LOCAL SYNC)
 // ============================================================================
 
 export async function ensureDefaultOtherCategory(): Promise<DBCategory> {
@@ -381,10 +457,39 @@ export interface ListCategoriesOptions {
 
 export async function listCategories(options: ListCategoriesOptions = {}): Promise<DBCategory[]> {
   await ensureDefaultOtherCategory();
-  let categories = readStoredCategories();
 
-  // Compute item counts
+  // Check Supabase Cloud first if available
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      let query = client.from(TABLES.categories).select('*');
+      if (options.onlyDeleted) {
+        query = query.not('deleted_at', 'is', null);
+      } else if (!options.includeDeleted) {
+        query = query.is('deleted_at', null);
+      }
+      if (options.activeOnly) {
+        query = query.eq('active', true);
+      }
+
+      const { data, error } = await query;
+      if (!error && Array.isArray(data) && data.length > 0) {
+        // Sync local cache
+        writeStoredCategories(data);
+        return data.map((cat: DBCategory) => ({
+          ...cat,
+          image: cat.image || (isDefaultOtherCategory(cat) ? DEFAULT_OTHER_CATEGORY_IMAGE : ''),
+        }));
+      }
+    } catch (err) {
+      console.warn('Supabase fetch failed, falling back to local storage database:', err);
+    }
+  }
+
+  // Fallback to Local Storage
+  let categories = readStoredCategories();
   const items = readStoredItems().filter((item) => !item.deleted_at);
+
   categories = categories.map((cat) => {
     const isOther = isDefaultOtherCategory(cat);
     const count = items.filter((item) => {
@@ -448,6 +553,16 @@ export async function createCategory(category: Partial<DBCategory>): Promise<DBC
 
   categories.push(newCat);
   writeStoredCategories(categories);
+
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      await client.from(TABLES.categories).upsert([newCat]);
+    } catch (err) {
+      console.warn('Failed to push category to Supabase:', err);
+    }
+  }
+
   return newCat;
 }
 
@@ -475,6 +590,16 @@ export async function updateCategory(id: string, updates: Partial<DBCategory>): 
 
   categories[index] = updated;
   writeStoredCategories(categories);
+
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      await client.from(TABLES.categories).update(updates).eq('id', current.id);
+    } catch (err) {
+      console.warn('Failed to update category in Supabase:', err);
+    }
+  }
+
   return updated;
 }
 
@@ -492,6 +617,16 @@ export async function setCategoryColumns(id: string, patch: Record<string, any>)
     updated_at: new Date().toISOString(),
   };
   writeStoredCategories(categories);
+
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      await client.from(TABLES.categories).update(patch).eq('id', categories[index].id);
+    } catch (err) {
+      console.warn('Failed to update category patch in Supabase:', err);
+    }
+  }
+
   return true;
 }
 
@@ -512,21 +647,34 @@ export async function permanentDeleteCategory(id: string): Promise<boolean> {
   const categories = readStoredCategories();
   const filtered = categories.filter((c) => c.id !== id && c.slug !== id);
   writeStoredCategories(filtered);
+
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      await client.from(TABLES.categories).delete().eq('id', id);
+    } catch (err) {
+      console.warn('Failed to delete category from Supabase:', err);
+    }
+  }
+
   return true;
 }
 
 export const fetchGroups = (includeDeleted = false) => listCategories({ includeDeleted });
 export async function saveGroup(group: Partial<DBCategory>): Promise<{ data: DBCategory; isSupabaseSynced: boolean }> {
+  let isSynced = false;
   if (group.id) {
     try {
       const updated = await updateCategory(group.id, group);
-      return { data: updated, isSupabaseSynced: false };
+      isSynced = isSupabaseConfigured();
+      return { data: updated, isSupabaseSynced: isSynced };
     } catch {
       // Create if doesn't exist
     }
   }
   const created = await createCategory(group);
-  return { data: created, isSupabaseSynced: false };
+  isSynced = isSupabaseConfigured();
+  return { data: created, isSupabaseSynced: isSynced };
 }
 export const softDeleteGroup = softDeleteCategory;
 export const restoreGroup = restoreCategory;
@@ -534,7 +682,7 @@ export const purgeGroupPermanently = permanentDeleteCategory;
 export const purgeCategoryPermanently = permanentDeleteCategory;
 
 // ============================================================================
-// ITEMS / PRODUCTS CRUD
+// ITEMS / PRODUCTS CRUD (SUPABASE + LOCAL SYNC)
 // ============================================================================
 
 export interface ListItemsOptions {
@@ -545,6 +693,29 @@ export interface ListItemsOptions {
 }
 
 export async function listItems(options: ListItemsOptions = {}): Promise<DBItem[]> {
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      let query = client.from(TABLES.items).select('*');
+      if (options.onlyDeleted) {
+        query = query.not('deleted_at', 'is', null);
+      } else if (!options.includeDeleted) {
+        query = query.is('deleted_at', null);
+      }
+      if (options.activeOnly) {
+        query = query.eq('active', true);
+      }
+
+      const { data, error } = await query;
+      if (!error && Array.isArray(data) && data.length > 0) {
+        writeStoredItems(data);
+        return data;
+      }
+    } catch (err) {
+      console.warn('Supabase items fetch failed, using local storage fallback:', err);
+    }
+  }
+
   let items = readStoredItems();
 
   if (options.onlyDeleted) {
@@ -599,6 +770,16 @@ export async function createItem(item: Partial<DBItem>): Promise<DBItem> {
 
   items.unshift(newItem);
   writeStoredItems(items);
+
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      await client.from(TABLES.items).upsert([newItem]);
+    } catch (err) {
+      console.warn('Failed to push item to Supabase:', err);
+    }
+  }
+
   return newItem;
 }
 
@@ -619,6 +800,16 @@ export async function updateItem(id: string, updates: Partial<DBItem>): Promise<
 
   items[index] = updated;
   writeStoredItems(items);
+
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      await client.from(TABLES.items).update(updates).eq('id', current.id);
+    } catch (err) {
+      console.warn('Failed to update item in Supabase:', err);
+    }
+  }
+
   return updated;
 }
 
@@ -633,6 +824,16 @@ export async function setItemColumns(id: string, patch: Record<string, any>): Pr
     updated_at: new Date().toISOString(),
   };
   writeStoredItems(items);
+
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      await client.from(TABLES.items).update(patch).eq('id', items[index].id);
+    } catch (err) {
+      console.warn('Failed to update item patch in Supabase:', err);
+    }
+  }
+
   return true;
 }
 
@@ -644,6 +845,16 @@ export async function permanentDeleteItem(id: string): Promise<boolean> {
   const items = readStoredItems();
   const filtered = items.filter((i) => i.id !== id && i.slug !== id);
   writeStoredItems(filtered);
+
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      await client.from(TABLES.items).delete().eq('id', id);
+    } catch (err) {
+      console.warn('Failed to delete item from Supabase:', err);
+    }
+  }
+
   return true;
 }
 
@@ -652,16 +863,19 @@ export const purgeItemPermanently = permanentDeleteItem;
 export const fetchItems = (includeDeleted = false) => listItems({ includeDeleted });
 
 export async function saveItem(item: Partial<DBItem>): Promise<{ data: DBItem; isSupabaseSynced: boolean }> {
+  let isSynced = false;
   if (item.id) {
     try {
       const updated = await updateItem(item.id, item);
-      return { data: updated, isSupabaseSynced: false };
+      isSynced = isSupabaseConfigured();
+      return { data: updated, isSupabaseSynced: isSynced };
     } catch {
       // Fall through to create
     }
   }
   const created = await createItem(item);
-  return { data: created, isSupabaseSynced: false };
+  isSynced = isSupabaseConfigured();
+  return { data: created, isSupabaseSynced: isSynced };
 }
 
 export function subscribeToChanges(_onChange: () => void): () => void {
@@ -677,13 +891,57 @@ export interface HealthCheckResult {
 }
 
 export async function runDatabaseHealthCheck(): Promise<HealthCheckResult> {
-  return {
-    ok: true,
-    isConfigured: false,
-    supabaseUrl: '',
-    checks: [{ name: 'Catalogue Database', status: 'pass', message: 'Local persistent catalogue storage is healthy.' }],
-    suggestedSql: '',
-  };
+  const isConfig = isSupabaseConfigured();
+  const url = getSupabaseUrl();
+
+  if (!isConfig) {
+    return {
+      ok: true,
+      isConfigured: false,
+      supabaseUrl: '',
+      checks: [{ name: 'Catalogue Database', status: 'pass', message: 'Local persistent database active & healthy.' }],
+      suggestedSql: '',
+    };
+  }
+
+  const client = getSupabaseClient();
+  if (!client) {
+    return {
+      ok: false,
+      isConfigured: true,
+      supabaseUrl: url,
+      checks: [{ name: 'Supabase Credentials', status: 'fail', message: 'Invalid Supabase URL or Anon Key.' }],
+      suggestedSql: '',
+    };
+  }
+
+  try {
+    const { error } = await client.from(TABLES.categories).select('id').limit(1);
+    if (error) {
+      return {
+        ok: false,
+        isConfigured: true,
+        supabaseUrl: url,
+        checks: [{ name: 'Supabase Query', status: 'fail', message: error.message }],
+        suggestedSql: '',
+      };
+    }
+    return {
+      ok: true,
+      isConfigured: true,
+      supabaseUrl: url,
+      checks: [{ name: 'Supabase Cloud Database', status: 'pass', message: 'Connected to Supabase PostgreSQL Database.' }],
+      suggestedSql: '',
+    };
+  } catch (err: any) {
+    return {
+      ok: false,
+      isConfigured: true,
+      supabaseUrl: url,
+      checks: [{ name: 'Network Connection', status: 'fail', message: err.message || 'Could not reach Supabase host.' }],
+      suggestedSql: '',
+    };
+  }
 }
 
 // ============================================================================

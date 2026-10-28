@@ -41,10 +41,13 @@ import {
 } from './lib/data';
 import { NICHE_CONFIG } from './config/niche';
 
+import { SupabaseConfigModal } from './components/SupabaseConfigModal';
+
 export default function App() {
   const [currentView, setCurrentView] = useState<'home' | 'search' | 'admin'>('home');
   const [items, setItems] = useState<DBItem[]>([]);
   const [groups, setGroups] = useState<DBGroup[]>([]);
+  const [isDbModalOpen, setIsDbModalOpen] = useState(false);
   
   // Temporary mapping for compatibility
   const products = useMemo(() => items.map(mapDBItemToFurnitureItem), [items]);
@@ -545,6 +548,7 @@ export default function App() {
           isSyncingToDb={false}
           lastSyncedAt={null}
           onGoToStore={() => setCurrentView('home')}
+          onOpenDatabaseSettings={() => setIsDbModalOpen(true)}
         />
       ) : (
         <>
@@ -629,6 +633,13 @@ export default function App() {
           <span className="text-[10px] font-bold">Admin</span>
         </button>
       </nav>
+
+      {/* Database Connection Config Modal */}
+      <SupabaseConfigModal
+        isOpen={isDbModalOpen}
+        onClose={() => setIsDbModalOpen(false)}
+        onSaved={loadData}
+      />
 
       {/* Admin Add/Edit Product Modal */}
       <AdminProductModal
