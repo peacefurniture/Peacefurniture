@@ -203,9 +203,9 @@ export const SearchView: React.FC<SearchViewProps> = ({
           </button>
         </div>
 
-        {/* Search Results Grid - 2 cols on mobile (exact match with screenshot) */}
+        {/* Search Results Grid - Responsive: 1-2 on mobile, 3 on tablet, 4 on desktop */}
         {results.length > 0 ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5">
+          <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5 sm:gap-5 lg:gap-6">
             {results.map((item) => (
               <ProductCard
                 key={item.id}

@@ -40,13 +40,13 @@ export const Hero: React.FC<HeroProps> = ({
             </p>
 
             {/* Title */}
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tight leading-[1.15] mb-2 sm:mb-3">
-              Furniture <span className="text-[#E11D2A]">Catalogue</span>
+            <h1 className="text-2xl sm:text-4xl md:text-5xl font-black text-white tracking-tight leading-[1.15] mb-2 sm:mb-3">
+              Peace Furniture <span className="text-[#E11D2A]">House</span>
             </h1>
 
             {/* Subtitle */}
-            <p className="text-sm sm:text-base text-gray-300 font-normal leading-relaxed mb-4 max-w-md">
-              Explore a wide range of furniture for every space.
+            <p className="text-xs sm:text-sm md:text-base text-gray-300 font-normal leading-relaxed mb-4 max-w-md">
+              Handcrafted luxury, comfortable living, and modern office furniture catalogue.
             </p>
 
             {/* Red accent bar */}

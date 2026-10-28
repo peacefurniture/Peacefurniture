@@ -94,9 +94,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </div>
         </div>
 
-        {/* Product Cards Grid - 2 cols on mobile */}
+        {/* Product Cards Grid - Responsive: 1-2 on mobile, 3 on tablet, 4 on desktop */}
         {products.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
+          <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5 sm:gap-5 lg:gap-6">
             {products.map((item) => (
               <ProductCard
                 key={item.id}
