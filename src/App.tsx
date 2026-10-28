@@ -24,6 +24,10 @@ import {
   saveGroup,
   softDeleteItem,
   softDeleteGroup,
+  restoreItem,
+  restoreGroup,
+  purgeItemPermanently,
+  purgeGroupPermanently,
   DBItem,
   DBGroup,
   mapDBItemToFurnitureItem,
@@ -271,11 +275,50 @@ export default function App() {
     const target = products.find((p) => p.id === productId);
     if (!target) return;
     try {
-      await softDeleteItem(productId);
-      await loadData();
+      const now = new Date().toISOString();
+      setItems((prev) =>
+        prev.map((item) => (item.id === productId ? { ...item, deleted_at: now } : item))
+      );
+      if (isSupabaseConfigured()) {
+        await softDeleteItem(productId);
+        await loadData();
+      }
       showToast(`Moved "${target.name}" to Trash`);
     } catch (err: any) {
       showToast(`Delete Error: ${err.message}`);
+      await loadData();
+    }
+  };
+
+  // Restore Product from Trash
+  const handleRestoreProduct = async (productId: string) => {
+    try {
+      setItems((prev) =>
+        prev.map((item) => (item.id === productId ? { ...item, deleted_at: null } : item))
+      );
+      if (isSupabaseConfigured()) {
+        await restoreItem(productId);
+        await loadData();
+      }
+      showToast('Product restored from Trash');
+    } catch (err: any) {
+      showToast(`Restore Error: ${err.message}`);
+      await loadData();
+    }
+  };
+
+  // Purge Product Permanently
+  const handlePurgeProduct = async (productId: string) => {
+    try {
+      setItems((prev) => prev.filter((item) => item.id !== productId));
+      if (isSupabaseConfigured()) {
+        await purgeItemPermanently(productId);
+        await loadData();
+      }
+      showToast('Product permanently purged from database');
+    } catch (err: any) {
+      showToast(`Purge Error: ${err.message}`);
+      await loadData();
     }
   };
 
@@ -342,23 +385,67 @@ export default function App() {
     setEditingAdminCategory(null);
   };
 
+  // Soft Delete Category (Moves to Trash)
   const handleDeleteCategory = async (categoryId: string) => {
     if (categoryId === 'all') {
       showToast('Cannot delete default "All" category');
       return;
     }
-    const catToDelete = categories.find((c) => c.id === categoryId);
+    const catToDelete = categories.find((c) => c.id === categoryId || c.slug === categoryId);
     if (isDefaultOtherCategory(catToDelete) || categoryId === 'other') {
       showToast("The default 'Other' category cannot be deleted.");
       return;
     }
 
     try {
-      await softDeleteGroup(categoryId);
-      await loadData();
+      const now = new Date().toISOString();
+      setGroups((prev) =>
+        prev.map((g) =>
+          g.id === categoryId || g.slug === categoryId ? { ...g, deleted_at: now } : g
+        )
+      );
+      if (isSupabaseConfigured()) {
+        await softDeleteGroup(categoryId);
+        await loadData();
+      }
       showToast(`Moved category "${catToDelete?.name || categoryId}" to Trash`);
     } catch (err: any) {
       showToast(`Error: ${err.message}`);
+      await loadData();
+    }
+  };
+
+  // Restore Category from Trash
+  const handleRestoreCategory = async (categoryId: string) => {
+    try {
+      setGroups((prev) =>
+        prev.map((g) =>
+          g.id === categoryId || g.slug === categoryId ? { ...g, deleted_at: null } : g
+        )
+      );
+      if (isSupabaseConfigured()) {
+        await restoreGroup(categoryId);
+        await loadData();
+      }
+      showToast('Category restored from Trash');
+    } catch (err: any) {
+      showToast(`Restore Error: ${err.message}`);
+      await loadData();
+    }
+  };
+
+  // Purge Category Permanently
+  const handlePurgeCategory = async (categoryId: string) => {
+    try {
+      setGroups((prev) => prev.filter((g) => g.id !== categoryId && g.slug !== categoryId));
+      if (isSupabaseConfigured()) {
+        await purgeGroupPermanently(categoryId);
+        await loadData();
+      }
+      showToast('Category permanently purged from database');
+    } catch (err: any) {
+      showToast(`Purge Error: ${err.message}`);
+      await loadData();
     }
   };
 
@@ -462,6 +549,10 @@ export default function App() {
           onEditCategory={handleOpenEditCategory}
           onDeleteCategory={handleDeleteCategory}
           onToggleActiveCategory={handleToggleActiveCategory}
+          onRestoreCategory={handleRestoreCategory}
+          onPurgeCategory={handlePurgeCategory}
+          onRestoreProduct={handleRestoreProduct}
+          onPurgeProduct={handlePurgeProduct}
           onStoreToDatabase={loadData}
           isSyncingToDb={false}
           lastSyncedAt={null}

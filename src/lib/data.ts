@@ -759,18 +759,29 @@ export async function updateCategory(id: string, updates: Partial<DBCategory>): 
 }
 
 async function setCategoryColumns(id: string, patch: Record<string, any>): Promise<boolean> {
-  requireConfigured();
-
   if (isDefaultOtherCategory(id)) {
     throw new Error("Default category 'Other' cannot be modified or deleted.");
   }
+
+  if (!isSupabaseConfigured()) {
+    return true;
+  }
+
   const existing = await getCategory(id);
   if (existing && isDefaultOtherCategory(existing)) {
     throw new Error("Default category 'Other' cannot be modified or deleted.");
   }
 
+  const targetId = existing?.id || id;
+
   return serializeWrite(async () => {
-    const { data, error } = await supabase.from(TABLES.categories).update(patch).eq('id', id).select('id');
+    let query = supabase.from(TABLES.categories).update(patch);
+    if (isUUID(targetId)) {
+      query = query.eq('id', targetId);
+    } else {
+      query = query.eq('slug', targetId);
+    }
+    const { data, error } = await query.select('id');
     if (error) throw parseSupabaseError(error);
     if (!data || data.length === 0) throw notFoundError('category', id);
     slugToUuid.clear();
@@ -798,16 +809,27 @@ export const toggleCategoryActive = (id: string, active: boolean) => setCategory
 
 /** PERMANENT DELETE: removes the row and its image file. Items in it become uncategorised. */
 export async function permanentDeleteCategory(id: string): Promise<boolean> {
-  requireConfigured();
   if (isDefaultOtherCategory(id)) {
     throw new Error("Default category 'Other' cannot be deleted.");
+  }
+  if (!isSupabaseConfigured()) {
+    return true;
   }
   const existing = await getCategory(id);
   if (existing && isDefaultOtherCategory(existing)) {
     throw new Error("Default category 'Other' cannot be deleted.");
   }
+
+  const targetId = existing?.id || id;
+
   await serializeWrite(async () => {
-    const { error } = await supabase.from(TABLES.categories).delete().eq('id', id);
+    let query = supabase.from(TABLES.categories).delete();
+    if (isUUID(targetId)) {
+      query = query.eq('id', targetId);
+    } else {
+      query = query.eq('slug', targetId);
+    }
+    const { error } = await query;
     if (error) throw parseSupabaseError(error);
   });
   slugToUuid.clear();
@@ -829,6 +851,8 @@ export async function saveGroup(group: Partial<DBCategory>): Promise<{ data: DBC
 }
 export const softDeleteGroup = softDeleteCategory;
 export const restoreGroup = restoreCategory;
+export const purgeGroupPermanently = permanentDeleteCategory;
+export const purgeCategoryPermanently = permanentDeleteCategory;
 
 // ============================================================================
 // 7. ITEMS (table 'items')
@@ -955,9 +979,12 @@ export async function updateItem(id: string, updates: Partial<DBItem>): Promise<
 }
 
 async function setItemColumns(id: string, patch: Record<string, any>): Promise<boolean> {
-  requireConfigured();
+  if (!isSupabaseConfigured()) {
+    return true;
+  }
+  const idField = isUUID(id) ? 'id' : 'slug';
   return serializeWrite(async () => {
-    const { data, error } = await supabase.from(TABLES.items).update(patch).eq('id', id).select('id');
+    const { data, error } = await supabase.from(TABLES.items).update(patch).eq(idField, id).select('id');
     if (error) throw parseSupabaseError(error);
     if (!data || data.length === 0) throw notFoundError('item', id);
     return true;
@@ -975,10 +1002,14 @@ export const toggleItemActive = (id: string, active: boolean) => setItemColumns(
 
 /** PERMANENT DELETE: removes the row and its image file. */
 export async function permanentDeleteItem(id: string): Promise<boolean> {
-  requireConfigured();
+  if (!isSupabaseConfigured()) {
+    return true;
+  }
   const existing = await getItem(id);
+  const targetId = existing?.id || id;
+  const idField = isUUID(targetId) ? 'id' : 'slug';
   await serializeWrite(async () => {
-    const { error } = await supabase.from(TABLES.items).delete().eq('id', id);
+    const { error } = await supabase.from(TABLES.items).delete().eq(idField, targetId);
     if (error) throw parseSupabaseError(error);
   });
   if (existing?.image) await deleteImage(existing.image, BUCKETS.items);
