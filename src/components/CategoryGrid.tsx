@@ -1,5 +1,6 @@
 import React from 'react';
 import { Category, CategoryId } from '../types';
+import { DEFAULT_OTHER_CATEGORY_IMAGE, isDefaultOtherCategory } from '../lib/data';
 
 interface CategoryGridProps {
   categories: Category[];
@@ -17,6 +18,8 @@ export const CategoryGrid: React.FC<CategoryGridProps> = ({
       <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-12 gap-2.5 sm:gap-3.5">
         {categories.filter((cat) => cat.isActive !== false).map((cat) => {
           const isSelected = selectedCategory === cat.id;
+          const isOther = isDefaultOtherCategory(cat);
+          const imgSrc = cat.image || (isOther ? DEFAULT_OTHER_CATEGORY_IMAGE : '');
 
           return (
             <button
@@ -34,12 +37,18 @@ export const CategoryGrid: React.FC<CategoryGridProps> = ({
                   isSelected ? 'bg-white/15' : 'bg-gray-50'
                 }`}
               >
-                <img
-                  src={cat.image}
-                  alt={cat.name}
-                  className="w-full h-full object-cover rounded-lg"
-                  loading="lazy"
-                />
+                {imgSrc ? (
+                  <img
+                    src={imgSrc}
+                    alt={cat.name}
+                    className="w-full h-full object-cover rounded-lg"
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className="w-full h-full rounded-lg bg-gray-200 flex items-center justify-center text-[10px] font-bold text-gray-400">
+                    {cat.name.slice(0, 2).toUpperCase()}
+                  </div>
+                )}
               </div>
 
               {/* Label */}

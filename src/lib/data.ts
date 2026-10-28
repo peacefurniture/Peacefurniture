@@ -292,14 +292,23 @@ function randomSuffix(): string {
   return Math.random().toString(36).slice(2, 6);
 }
 
+// ---- Default Other Category Image -----------------------------------------
+export const DEFAULT_OTHER_CATEGORY_IMAGE =
+  '/assets/aistudio/file_00000000ad94820a85e740a448561b67_539794f7.png';
+
 // ---- Row mappers (one place, so every function returns the same shape) -----
 
 function mapCategoryRow(row: any): DBCategory {
+  const isOther =
+    (typeof row.slug === 'string' && row.slug.trim().toLowerCase() === 'other') ||
+    (typeof row.id === 'string' && row.id.trim().toLowerCase() === 'other') ||
+    (typeof row.name === 'string' && row.name.trim().toLowerCase() === 'other');
+
   return {
     id: row.id,
     slug: row.slug || row.id,
     name: row.name,
-    image: row.image ?? row.image_url ?? '',
+    image: row.image || row.image_url || (isOther ? DEFAULT_OTHER_CATEGORY_IMAGE : ''),
     item_count: row.item_count ?? 0,
     active: row.active ?? true,
     deleted_at: row.deleted_at || null,
@@ -523,7 +532,7 @@ export async function ensureDefaultOtherCategory(): Promise<DBCategory> {
     name: 'Other',
     active: true,
     item_count: 0,
-    image: '',
+    image: DEFAULT_OTHER_CATEGORY_IMAGE,
     deleted_at: null,
   };
 
@@ -543,14 +552,19 @@ export async function ensureDefaultOtherCategory(): Promise<DBCategory> {
     }
 
     if (existing) {
-      if (existing.deleted_at !== null || existing.active === false || existing.name !== 'Other') {
+      const updates: Record<string, any> = {};
+      if (existing.deleted_at !== null) updates.deleted_at = null;
+      if (existing.active === false) updates.active = true;
+      if (existing.name !== 'Other') updates.name = 'Other';
+      if (!existing.image || existing.image === '') {
+        updates.image = DEFAULT_OTHER_CATEGORY_IMAGE;
+      }
+      if (Object.keys(updates).length > 0) {
         await supabase
           .from(TABLES.categories)
-          .update({ deleted_at: null, active: true, name: 'Other' })
+          .update(updates)
           .eq('id', existing.id);
-        existing.deleted_at = null;
-        existing.active = true;
-        existing.name = 'Other';
+        Object.assign(existing, updates);
       }
       return mapCategoryRow(existing);
     }
@@ -563,7 +577,7 @@ export async function ensureDefaultOtherCategory(): Promise<DBCategory> {
         slug: 'other',
         active: true,
         deleted_at: null,
-        image: '',
+        image: DEFAULT_OTHER_CATEGORY_IMAGE,
       })
       .select()
       .single();
@@ -600,7 +614,7 @@ export async function listCategories(options: ListCategoriesOptions = {}): Promi
     name: 'Other',
     active: true,
     item_count: 0,
-    image: '',
+    image: DEFAULT_OTHER_CATEGORY_IMAGE,
     deleted_at: null,
   };
 
@@ -651,7 +665,7 @@ export async function getCategory(idOrSlug: string): Promise<DBCategory | null> 
         name: 'Other',
         active: true,
         item_count: 0,
-        image: '',
+        image: DEFAULT_OTHER_CATEGORY_IMAGE,
         deleted_at: null,
       };
     }
@@ -1170,11 +1184,12 @@ export function mapDBItemToFurnitureItem(item: DBItem): FurnitureItem {
 }
 
 export function mapDBGroupToCategory(group: DBCategory): Category {
+  const isOther = isDefaultOtherCategory(group);
   return {
     id: group.id as any,
     name: group.name,
     slug: group.slug,
-    image: group.image || '',
+    image: group.image || (isOther ? DEFAULT_OTHER_CATEGORY_IMAGE : ''),
     count: group.item_count || 0,
     isActive: group.active,
     deleted_at: group.deleted_at,
@@ -1195,12 +1210,13 @@ export function mapFurnitureItemToDBItem(item: FurnitureItem, existingItem: DBIt
 }
 
 export function mapCategoryToDBGroup(category: Category, existingGroup: DBCategory): DBCategory {
+  const isOther = isDefaultOtherCategory(category) || isDefaultOtherCategory(existingGroup);
   return {
     ...existingGroup,
     id: category.id as string,
     name: category.name,
     slug: category.slug || existingGroup.slug,
-    image: category.image || '',
+    image: category.image || (isOther ? DEFAULT_OTHER_CATEGORY_IMAGE : ''),
     active: (category as any).isActive ?? true,
   };
 }

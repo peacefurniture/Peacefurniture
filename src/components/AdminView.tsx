@@ -31,6 +31,7 @@ import {
   restoreItem,
   restoreGroup,
   purgeItemPermanently,
+  DEFAULT_OTHER_CATEGORY_IMAGE,
 } from '../lib/data';
 
 interface AdminViewProps {
@@ -486,9 +487,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         <tr key={cat.id} className="hover:bg-gray-50/60 transition-colors">
                           <td className="py-3 px-4">
                             <div className="flex items-center gap-3">
-                              {cat.image ? (
+                              {cat.image || (isDefaultCategory ? DEFAULT_OTHER_CATEGORY_IMAGE : '') ? (
                                 <img
-                                  src={cat.image}
+                                  src={cat.image || DEFAULT_OTHER_CATEGORY_IMAGE}
                                   alt={cat.name}
                                   className="w-9 h-9 rounded-xl object-cover border border-gray-200"
                                 />

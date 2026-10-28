@@ -33,6 +33,7 @@ import {
   isSupabaseConfigured,
   generateUniqueSlug,
   isDefaultOtherCategory,
+  DEFAULT_OTHER_CATEGORY_IMAGE,
 } from './lib/data';
 import { NICHE_CONFIG } from './config/niche';
 
@@ -57,7 +58,12 @@ export default function App() {
         fetchGroups(true),
         fetchItems(true),
       ]);
-      let resolvedGroups = fetchedGroups;
+      let resolvedGroups = fetchedGroups.map((g) => {
+        if (isDefaultOtherCategory(g) && !g.image) {
+          return { ...g, image: DEFAULT_OTHER_CATEGORY_IMAGE };
+        }
+        return g;
+      });
       const hasOther = resolvedGroups.some((g) => isDefaultOtherCategory(g));
       if (!hasOther) {
         resolvedGroups = [
@@ -68,7 +74,7 @@ export default function App() {
             name: 'Other',
             active: true,
             item_count: 0,
-            image: '',
+            image: DEFAULT_OTHER_CATEGORY_IMAGE,
             deleted_at: null,
           },
         ];
