@@ -1,16 +1,20 @@
 import React from 'react';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Sparkles } from 'lucide-react';
 import { FurnitureItem } from '../types';
 import { formatCurrency } from '../config/niche';
 
 interface ProductCardProps {
   product: FurnitureItem;
   onViewDetails: (product: FurnitureItem) => void;
+  aiMatchScore?: number;
+  aiMatchReason?: string;
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({
   product,
   onViewDetails,
+  aiMatchScore,
+  aiMatchReason,
 }) => {
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col overflow-hidden group">
@@ -22,6 +26,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-300"
           loading="lazy"
         />
+
+        {/* AI Match Badge */}
+        {aiMatchScore !== undefined && (
+          <span className="absolute top-2.5 left-2.5 bg-emerald-600/95 text-white backdrop-blur-md text-[10px] font-extrabold px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-md border border-emerald-400/30">
+            <Sparkles className="w-3 h-3 fill-emerald-200 text-emerald-200" />
+            <span>{aiMatchScore}% Visual Match</span>
+          </span>
+        )}
 
         {/* Discount Badge */}
         {product.originalPrice && product.originalPrice > product.price && (
@@ -55,7 +67,15 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             )}
           </div>
 
-          {/* Description (Full text shown without line truncation) */}
+          {/* AI Match Reason callout */}
+          {aiMatchReason && (
+            <p className="text-[11px] text-emerald-800 bg-emerald-50/90 border border-emerald-200/80 px-2.5 py-1.5 rounded-xl mt-2 font-semibold flex items-start gap-1.5 leading-snug">
+              <Sparkles className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0 mt-0.5" />
+              <span>{aiMatchReason}</span>
+            </p>
+          )}
+
+          {/* Description */}
           <p className="text-xs text-gray-600 mt-2 leading-relaxed font-normal">
             {product.description}
           </p>

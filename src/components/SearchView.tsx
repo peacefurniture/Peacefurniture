@@ -15,6 +15,7 @@ interface SearchViewProps {
   onViewDetails: (item: FurnitureItem) => void;
   activeImageSearch?: string | null;
   onClearImageSearch?: () => void;
+  aiSearchMatches?: any;
 }
 
 export const SearchView: React.FC<SearchViewProps> = ({
@@ -29,6 +30,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
   onViewDetails,
   activeImageSearch,
   onClearImageSearch,
+  aiSearchMatches,
 }) => {
   const [selectedQuickChip, setSelectedQuickChip] = useState<string>(
     searchQuery || 'wooden dining table'
@@ -139,19 +141,28 @@ export const SearchView: React.FC<SearchViewProps> = ({
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
-              <div className="inline-flex items-center gap-1.5 bg-[#E11D2A]/10 text-[#E11D2A] px-3 py-1 rounded-full text-xs font-bold mb-2">
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Visual Match Active (96% Confidence)</span>
+
+              <div className="inline-flex items-center gap-1.5 bg-[#E11D2A] text-white px-3 py-1 rounded-full text-xs font-bold mb-2 shadow-xs">
+                <Sparkles className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
+                <span>Scanned with Gemini 3.5 Flash Lite</span>
               </div>
-              <p className="text-xs text-gray-600 mb-3">
-                Showing matching catalogue pieces with similar wood tone, silhouette, and proportions.
+
+              {aiSearchMatches?.scannedItem?.itemType && (
+                <p className="text-xs font-bold text-gray-900 mb-1">
+                  Identified: {aiSearchMatches.scannedItem.itemType}
+                </p>
+              )}
+
+              <p className="text-xs text-gray-600 mb-3 max-w-md mx-auto">
+                Filtered catalog to visually similar items with matching silhouette and craft wood finish. <strong className="text-gray-900">(Identical product photos excluded)</strong>
               </p>
+
               <button
                 onClick={onOpenImageSearch}
-                className="bg-white border border-gray-300 hover:border-gray-400 text-gray-800 text-xs font-semibold px-4 py-2 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
+                className="bg-white border border-gray-300 hover:border-gray-400 text-gray-800 text-xs font-semibold px-4 py-2 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
               >
-                <RefreshCw className="w-3.5 h-3.5" />
-                Try Another Photo
+                <RefreshCw className="w-3.5 h-3.5 text-[#E11D2A]" />
+                <span>Scan Another Photo</span>
               </button>
             </div>
           ) : (
@@ -162,11 +173,14 @@ export const SearchView: React.FC<SearchViewProps> = ({
               </div>
 
               {/* Title & Description */}
-              <h3 className="font-extrabold text-gray-900 text-base sm:text-lg mb-1 tracking-tight">
-                Search by Image (AI)
+              <h3 className="font-extrabold text-gray-900 text-base sm:text-lg mb-1 tracking-tight flex items-center justify-center gap-2">
+                <span>Search by Image (AI)</span>
+                <span className="bg-red-100 text-[#E11D2A] text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-red-200">
+                  Gemini 3.5 Flash Lite
+                </span>
               </h3>
-              <p className="text-xs sm:text-sm text-gray-600 mb-4 font-normal">
-                Upload a photo to find similar furniture.
+              <p className="text-xs sm:text-sm text-gray-600 mb-4 font-normal max-w-md mx-auto">
+                Upload a photo to find visually similar furniture catalog pieces (exact duplicate images excluded).
               </p>
 
               {/* Upload Image Red Button */}
@@ -189,7 +203,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
               Search Results
             </h2>
             <p className="text-xs sm:text-sm text-gray-500 font-medium mt-0.5">
-              Showing {displayCount} results for "{searchQuery || 'wooden dining table'}"
+              Showing {displayCount} results {activeImageSearch ? 'visually matched by AI' : `for "${searchQuery || 'wooden dining table'}"`}
             </p>
           </div>
 
@@ -206,13 +220,21 @@ export const SearchView: React.FC<SearchViewProps> = ({
         {/* Search Results Grid - Responsive: 1-2 on mobile, 3 on tablet, 4 on desktop */}
         {results.length > 0 ? (
           <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5 sm:gap-5 lg:gap-6">
-            {results.map((item) => (
-              <ProductCard
-                key={item.id}
-                product={item}
-                onViewDetails={onViewDetails}
-              />
-            ))}
+            {results.map((item) => {
+              const match = activeImageSearch && aiSearchMatches?.similarMatches?.find(
+                (m: any) => m.productId === item.id || m.product?.id === item.id
+              );
+
+              return (
+                <ProductCard
+                  key={item.id}
+                  product={item}
+                  onViewDetails={onViewDetails}
+                  aiMatchScore={match?.similarityScore}
+                  aiMatchReason={match?.matchReason}
+                />
+              );
+            })}
           </div>
         ) : (
           <div className="bg-white rounded-2xl p-8 sm:p-12 text-center border border-gray-200 max-w-md mx-auto my-6 shadow-xs">

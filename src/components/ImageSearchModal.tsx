@@ -4,7 +4,7 @@ import { X, Upload, Sparkles, Image as ImageIcon, CheckCircle, ArrowRight } from
 interface ImageSearchModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onApplyImageSearch: (imageUrl: string, queryHint: string) => void;
+  onApplyImageSearch: (imageUrl: string, queryHint: string, aiMatches?: any) => void;
 }
 
 export const ImageSearchModal: React.FC<ImageSearchModalProps> = ({
@@ -52,7 +52,7 @@ export const ImageSearchModal: React.FC<ImageSearchModalProps> = ({
     setAnalyzing(true);
 
     try {
-      const res = await fetch('/api/analyze-image', {
+      const res = await fetch('/api/search-by-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image: imageDataOrUrl }),
@@ -60,17 +60,17 @@ export const ImageSearchModal: React.FC<ImageSearchModalProps> = ({
 
       if (res.ok) {
         const data = await res.json();
-        if (data.success && data.analysis) {
-          const query = data.analysis.suggestedSearchQuery || data.analysis.category || fallbackQuery;
-          setDetectedCategory(data.analysis.itemType || 'Furniture Identified');
+        if (data.success) {
+          const query = data.scannedItem?.suggestedSearchQuery || data.scannedItem?.category || fallbackQuery;
+          setDetectedCategory(data.scannedItem?.itemType || 'Furniture Identified');
           setAnalyzing(false);
-          onApplyImageSearch(imageDataOrUrl, query);
+          onApplyImageSearch(imageDataOrUrl, query, data);
           onClose();
           return;
         }
       }
     } catch (err) {
-      console.warn('Gemini image search fallback:', err);
+      console.warn('Gemini 3.1 Flash Lite search error, falling back:', err);
     }
 
     // Fallback if network or API key issue
@@ -79,7 +79,7 @@ export const ImageSearchModal: React.FC<ImageSearchModalProps> = ({
     onClose();
   };
 
-  const handleSelectImage = (imgUrl: string, detected: string, query: string) => {
+  const handleSelectImage = (imgUrl: string, _detected: string, query: string) => {
     processImageWithGemini(imgUrl, query);
   };
 
@@ -108,10 +108,13 @@ export const ImageSearchModal: React.FC<ImageSearchModalProps> = ({
               <Sparkles className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-extrabold text-gray-900 text-base leading-none">
-                Search by Image (AI)
+              <h3 className="font-extrabold text-gray-900 text-base leading-none flex items-center gap-1.5">
+                <span>Search by Image (AI)</span>
+                <span className="bg-red-100 text-[#E11D2A] text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-red-200">
+                  Gemini 3.5 Flash Lite
+                </span>
               </h3>
-              <p className="text-[11px] text-gray-500 mt-0.5 font-medium">
+              <p className="text-[11px] text-gray-500 mt-1 font-medium">
                 Visual similarity search for catalog furniture
               </p>
             </div>
@@ -177,10 +180,10 @@ export const ImageSearchModal: React.FC<ImageSearchModalProps> = ({
             <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-center animate-pulse">
               <div className="flex items-center justify-center gap-2 text-[#E11D2A] font-bold text-xs mb-1">
                 <Sparkles className="w-4 h-4 animate-spin" />
-                <span>AI Analyzing Furniture Characteristics...</span>
+                <span>Gemini 3.5 Flash Lite Scanning Image...</span>
               </div>
               <p className="text-[11px] text-gray-600">
-                Detecting silhouette, wood tones, and upholstery textures to match catalogue items.
+                Scanning visual features, wood tones & upholstery textures to find similar catalog items (excluding exact duplicate photos).
               </p>
             </div>
           )}

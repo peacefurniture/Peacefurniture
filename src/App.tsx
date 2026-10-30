@@ -115,6 +115,7 @@ export default function App() {
   // Search state
   const [searchQuery, setSearchQuery] = useState<string>('wooden dining table');
   const [activeImageSearch, setActiveImageSearch] = useState<string | null>(null);
+  const [aiSearchMatches, setAiSearchMatches] = useState<any | null>(null);
 
   // Category & Filter state
   const [selectedCategory, setSelectedCategory] = useState<CategoryId>('all');
@@ -203,7 +204,34 @@ export default function App() {
           activeCategorySlugs.has(item.category))
     );
 
-    if (searchQuery.trim()) {
+    // Rule: When image search is active, uploaded image and product image MUST NOT be equal
+    if (activeImageSearch) {
+      items = items.filter((item) => item.image !== activeImageSearch);
+    }
+
+    if (activeImageSearch && aiSearchMatches?.similarMatches?.length > 0) {
+      const matchMap = new Map<string, { score: number; reason: string }>();
+      aiSearchMatches.similarMatches.forEach((m: any) => {
+        const id = m.productId || m.product?.id;
+        if (id) {
+          matchMap.set(String(id), {
+            score: m.similarityScore || 85,
+            reason: m.reason || m.matchReason || 'Visually similar furniture piece',
+          });
+        }
+      });
+
+      items = items.map((item) => {
+        const match = matchMap.get(item.id) || (item.slug ? matchMap.get(item.slug) : undefined);
+        if (match) {
+          return { ...item, aiMatchScore: match.score, aiMatchReason: match.reason };
+        }
+        return item;
+      });
+
+      // Sort items with AI visual matches first
+      items.sort((a, b) => ((b as any).aiMatchScore || 0) - ((a as any).aiMatchScore || 0));
+    } else if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim();
       items = items.filter((item) => {
         const matchesName = item.name.toLowerCase().includes(query);
@@ -243,7 +271,7 @@ export default function App() {
     }
 
     return items;
-  }, [products, categories, searchQuery, filters]);
+  }, [products, categories, searchQuery, filters, activeImageSearch, aiSearchMatches]);
 
   // ============ ADMIN ACTIONS (DATA LAYER CONNECTED) ============
 
@@ -495,14 +523,16 @@ export default function App() {
     setCurrentView('search');
   };
 
-  const handleApplyImageSearch = (imageUrl: string, queryHint: string) => {
+  const handleApplyImageSearch = (imageUrl: string, queryHint: string, aiMatches?: any) => {
     setActiveImageSearch(imageUrl);
     setSearchQuery(queryHint || 'wooden dining table');
+    setAiSearchMatches(aiMatches || null);
     setCurrentView('search');
   };
 
   const handleClearImageSearch = () => {
     setActiveImageSearch(null);
+    setAiSearchMatches(null);
   };
 
   const handleResetFilters = () => {
@@ -587,6 +617,7 @@ export default function App() {
                 onViewDetails={(item) => setSelectedProduct(item)}
                 activeImageSearch={activeImageSearch}
                 onClearImageSearch={handleClearImageSearch}
+                aiSearchMatches={aiSearchMatches}
               />
             )}
           </main>
