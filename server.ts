@@ -883,13 +883,14 @@ async function startServer() {
                 },
               },
               {
-                text: `You are an expert furniture vision model powered by Gemini 3.5 Flash Lite.
-Scan the uploaded furniture image and compare its visual aesthetics (silhouette, wood tone, upholstery fabric, proportions, style) against the catalog products provided below.
+                text: `You are an expert furniture vision AI powered by Gemini 3.5 Flash Lite.
+Scan the uploaded furniture image and compare its visual aesthetics (silhouette, wood tone, upholstery fabric, proportions, style) against all catalog products provided below.
 
-CRITICAL INSTRUCTIONS:
-1. Do NOT select exact duplicate images. The matched catalog product must NOT be equal/identical in image URL to the uploaded image. Select products that are SIMILAR in style, material, design, or functionality.
-2. Evaluate visual similarity score (integer from 50 to 98) for matching products in the catalog.
-3. Provide a brief, concise explanation (1 sentence) for each match explaining why it is visually similar (e.g., "Matching Sheesham wood tone and 6-seater proportion", "Similar grey textured fabric and curved armrests").
+MATCHING & SCORING INSTRUCTIONS:
+1. Exact Same Item / Identical Image: If a catalog product is the EXACT SAME item or has the identical photo/design as the uploaded photo, assign a similarity score of 100% and matchReason: "🎯 Exact Match - Same product in catalog".
+2. Highly Similar Item: If a product has very close visual design, wood finish, upholstery, or silhouette, assign a similarity score between 85% and 98%.
+3. Somewhat Similar Item: If a product shares a general category, material, or complementary style, assign a similarity score between 50% and 84%.
+4. Include ALL relevant matches (exact, highly similar, and somewhat similar) ranked by similarity score descending.
 
 CATALOG PRODUCTS TO MATCH AGAINST:
 ${JSON.stringify(catalogSummary, null, 2)}`,
@@ -938,7 +939,7 @@ ${JSON.stringify(catalogSummary, null, 2)}`,
               parts: [
                 { inlineData: { mimeType, data: base64Data } },
                 {
-                  text: `Scan the uploaded furniture image and compare visual features against catalog products: ${JSON.stringify(catalogSummary, null, 2)}`,
+                  text: `Scan the uploaded furniture image and evaluate exact, highly similar, and somewhat similar catalog products: ${JSON.stringify(catalogSummary, null, 2)}`,
                 },
               ],
             },
@@ -973,26 +974,36 @@ ${JSON.stringify(catalogSummary, null, 2)}`,
         }
       }
 
-      // If Gemini succeeded, build structured output ensuring exact duplicate image URLs are filtered out
+      // If Gemini succeeded, build structured output including exact, highly similar, and somewhat similar matches
       if (parsedResult && parsedResult.similarMatches) {
         const normalizedMatches = parsedResult.similarMatches
-          .filter((m: any) => {
-            const prod = catalogProducts.find(p => p.id === m.productId);
-            // Ensure product image is not equal to uploaded image if uploaded image is a URL
-            if (prod && typeof image === 'string' && image.startsWith('http') && prod.image === image) {
-              return false;
-            }
-            return Boolean(prod);
-          })
+          .filter((m: any) => Boolean(catalogProducts.find(p => p.id === m.productId)))
           .map((m: any) => {
             const prod = catalogProducts.find(p => p.id === m.productId);
+            const isExactImage = prod && typeof image === 'string' && (image === prod.image || image.includes(prod.id));
+            const calculatedScore = isExactImage ? 100 : Math.min(100, Math.max(50, Number(m.similarityScore) || 85));
+            const calculatedReason = isExactImage 
+              ? '🎯 Exact Match - Same product in catalog' 
+              : (m.matchReason || `Visually similar ${prod?.category || 'furniture'} design`);
+
             return {
               product: prod,
               productId: m.productId,
-              similarityScore: Math.min(98, Math.max(60, Number(m.similarityScore) || 85)),
-              matchReason: m.matchReason || `Similar ${prod?.category || 'furniture'} design and materials`,
+              similarityScore: calculatedScore,
+              matchReason: calculatedReason,
             };
           });
+
+        // Ensure exact image match is included if present in catalog
+        const exactImgProduct = catalogProducts.find(p => typeof image === 'string' && p.image === image);
+        if (exactImgProduct && !normalizedMatches.some((m: any) => m.productId === exactImgProduct.id)) {
+          normalizedMatches.unshift({
+            product: exactImgProduct,
+            productId: exactImgProduct.id,
+            similarityScore: 100,
+            matchReason: '🎯 Exact Match - Same product in catalog',
+          });
+        }
 
         return res.json({
           success: true,
@@ -1009,15 +1020,29 @@ ${JSON.stringify(catalogSummary, null, 2)}`,
 
       // Smart visual similarity fallback (when API key is pending or offline)
       const scannedType = 'Furniture Item';
-      const fallbackMatches = catalogProducts
-        .filter(p => typeof image !== 'string' || !image.startsWith('http') || p.image !== image)
-        .slice(0, 4)
-        .map((p, idx) => ({
-          product: p,
-          productId: p.id,
-          similarityScore: 92 - idx * 4,
-          matchReason: `Similar ${p.category} styling, dimensions, and craft materials`,
-        }));
+      const exactImgProd = catalogProducts.find(p => typeof image === 'string' && p.image === image);
+      const fallbackMatches: any[] = [];
+
+      if (exactImgProd) {
+        fallbackMatches.push({
+          product: exactImgProd,
+          productId: exactImgProd.id,
+          similarityScore: 100,
+          matchReason: '🎯 Exact Match - Same product in catalog',
+        });
+      }
+
+      catalogProducts
+        .filter(p => !exactImgProd || p.id !== exactImgProd.id)
+        .slice(0, 5)
+        .forEach((p, idx) => {
+          fallbackMatches.push({
+            product: p,
+            productId: p.id,
+            similarityScore: Math.max(55, 92 - idx * 8),
+            matchReason: idx < 2 ? `Highly similar ${p.category} styling & wood tone` : `Somewhat similar ${p.category} design`,
+          });
+        });
 
       res.json({
         success: true,

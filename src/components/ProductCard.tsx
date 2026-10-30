@@ -29,10 +29,22 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
         {/* AI Match Badge */}
         {aiMatchScore !== undefined && (
-          <span className="absolute top-2.5 left-2.5 bg-emerald-600/95 text-white backdrop-blur-md text-[10px] font-extrabold px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-md border border-emerald-400/30">
-            <Sparkles className="w-3 h-3 fill-emerald-200 text-emerald-200" />
-            <span>{aiMatchScore}% Visual Match</span>
-          </span>
+          aiMatchScore >= 99 ? (
+            <span className="absolute top-2.5 left-2.5 bg-gradient-to-r from-amber-500 to-emerald-600 text-white text-[10px] font-black px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-md border border-amber-300/40">
+              <Sparkles className="w-3 h-3 fill-amber-200 text-amber-200" />
+              <span>🎯 Exact Match (100%)</span>
+            </span>
+          ) : aiMatchScore >= 80 ? (
+            <span className="absolute top-2.5 left-2.5 bg-emerald-600/95 text-white backdrop-blur-md text-[10px] font-extrabold px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-md border border-emerald-400/30">
+              <Sparkles className="w-3 h-3 fill-emerald-200 text-emerald-200" />
+              <span>✨ Highly Similar ({aiMatchScore}%)</span>
+            </span>
+          ) : (
+            <span className="absolute top-2.5 left-2.5 bg-amber-600/95 text-white backdrop-blur-md text-[10px] font-extrabold px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-md border border-amber-300/30">
+              <Sparkles className="w-3 h-3 fill-amber-200 text-amber-200" />
+              <span>💡 Somewhat Similar ({aiMatchScore}%)</span>
+            </span>
+          )
         )}
 
         {/* Discount Badge */}

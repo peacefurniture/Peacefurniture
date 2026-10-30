@@ -154,7 +154,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
               )}
 
               <p className="text-xs text-gray-600 mb-3 max-w-md mx-auto">
-                Filtered catalog to visually similar items with matching silhouette and craft wood finish. <strong className="text-gray-900">(Identical product photos excluded)</strong>
+                Displaying exact matches (100%), highly similar designs, and somewhat similar furniture pieces ranked by Gemini 3.5 Flash Lite vision.
               </p>
 
               <button
@@ -180,7 +180,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
                 </span>
               </h3>
               <p className="text-xs sm:text-sm text-gray-600 mb-4 font-normal max-w-md mx-auto">
-                Upload a photo to find visually similar furniture catalog pieces (exact duplicate images excluded).
+                Upload a photo to find exact matches, highly similar items, and somewhat similar furniture pieces in the catalog.
               </p>
 
               {/* Upload Image Red Button */}

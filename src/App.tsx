@@ -204,32 +204,35 @@ export default function App() {
           activeCategorySlugs.has(item.category))
     );
 
-    // Rule: When image search is active, uploaded image and product image MUST NOT be equal
-    if (activeImageSearch) {
-      items = items.filter((item) => item.image !== activeImageSearch);
-    }
-
     if (activeImageSearch && aiSearchMatches?.similarMatches?.length > 0) {
       const matchMap = new Map<string, { score: number; reason: string }>();
       aiSearchMatches.similarMatches.forEach((m: any) => {
         const id = m.productId || m.product?.id;
         if (id) {
           matchMap.set(String(id), {
-            score: m.similarityScore || 85,
-            reason: m.reason || m.matchReason || 'Visually similar furniture piece',
+            score: m.similarityScore !== undefined ? m.similarityScore : 85,
+            reason: m.reason || m.matchReason || 'Visually matched furniture item',
           });
         }
       });
 
       items = items.map((item) => {
         const match = matchMap.get(item.id) || (item.slug ? matchMap.get(item.slug) : undefined);
+        const isExactImg = activeImageSearch && item.image === activeImageSearch;
+        if (isExactImg) {
+          return {
+            ...item,
+            aiMatchScore: 100,
+            aiMatchReason: '🎯 Exact Match - Same product in catalog',
+          };
+        }
         if (match) {
           return { ...item, aiMatchScore: match.score, aiMatchReason: match.reason };
         }
         return item;
       });
 
-      // Sort items with AI visual matches first
+      // Sort items with AI visual matches first (100% exact matches first, then highest similarity)
       items.sort((a, b) => ((b as any).aiMatchScore || 0) - ((a as any).aiMatchScore || 0));
     } else if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim();
