@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Upload, Check, Trash2, RefreshCw, AlertCircle } from 'lucide-react';
 import { Category, CategoryId, FurnitureItem } from '../types';
-import { uploadImage, generateUniqueSlug } from '../lib/data';
+import { uploadImage, generateUniqueSlug, generateUUID, isUUID } from '../lib/data';
 
 interface AdminProductModalProps {
   isOpen: boolean;
@@ -204,8 +204,13 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
 
     const resolvedCategoryId = resolveSelectedCategoryId(formData.category || (formData as any)?.group_id);
 
+    const generatedId =
+      (initialProduct?.id && isUUID(initialProduct.id))
+        ? initialProduct.id
+        : initialProduct?.id || generateUUID();
+
     const completeProduct: FurnitureItem = {
-      id: initialProduct?.id || `product-${Date.now()}`,
+      id: generatedId,
       slug: generatedSlug,
       name: productNameTrimmed,
       category: resolvedCategoryId as CategoryId,

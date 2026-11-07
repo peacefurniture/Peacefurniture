@@ -250,6 +250,17 @@ export function isUUID(str: string | null | undefined): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
 }
 
+export function generateUUID(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 export function slugify(text: string): string {
   const base = (text || '')
     .normalize('NFKD')
@@ -702,7 +713,8 @@ export async function createCategory(category: Partial<DBCategory>): Promise<Sav
 
   const categories = readStoredCategories();
   const slug = typedSlug || generateUniqueSlug(name, categories);
-  const newCatId = category.id || `cat-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  // Ensure we ALWAYS assign a valid RFC4122 UUID so Postgres UUID column never throws invalid input syntax
+  const newCatId = (category.id && isUUID(category.id)) ? category.id : generateUUID();
   const newCat: DBCategory = {
     id: newCatId,
     name,
@@ -730,8 +742,8 @@ export async function createCategory(category: Partial<DBCategory>): Promise<Sav
   const client = getSupabaseClient();
   if (client && isSupabaseConfigured()) {
     try {
-      // Clean payload for Supabase - ONLY columns that exist in public.categories
-      const supabasePayload = {
+      // Clean payload for Supabase with a valid RFC4122 UUID
+      const supabasePayload: Record<string, any> = {
         id: newCat.id,
         name: newCat.name,
         slug: newCat.slug,
@@ -740,7 +752,33 @@ export async function createCategory(category: Partial<DBCategory>): Promise<Sav
         deleted_at: null,
       };
 
-      const { error } = await client.from(TABLES.categories).upsert([supabasePayload]);
+      let { error } = await client.from(TABLES.categories).upsert([supabasePayload]);
+      
+      // If Postgres still has an issue with client-provided UUID on upsert (e.g. 22P02),
+      // fallback to insert without ID and let Supabase assign/return the UUID
+      if (error && (error.code === '22P02' || error.message?.toLowerCase().includes('uuid'))) {
+        console.warn('Upsert with ID failed, attempting insert without explicit ID...', error);
+        const fallbackPayload = {
+          name: newCat.name,
+          slug: newCat.slug,
+          image: newCat.image || '',
+          active: newCat.active,
+          deleted_at: null,
+        };
+        const insertRes = await client.from(TABLES.categories).insert([fallbackPayload]).select('id').single();
+        if (!insertRes.error && insertRes.data?.id) {
+          error = null;
+          newCat.id = insertRes.data.id;
+          const idx = categories.findIndex((c) => c.slug === newCat.slug);
+          if (idx >= 0) {
+            categories[idx] = newCat;
+            writeStoredCategories(categories);
+          }
+        } else if (insertRes.error) {
+          error = insertRes.error;
+        }
+      }
+
       if (error) {
         console.warn('Supabase createCategory error:', error);
         supabaseError = formatSupabaseError(error, 'categories');
@@ -801,7 +839,14 @@ export async function updateCategory(id: string, updates: Partial<DBCategory>): 
       if (updates.deleted_at !== undefined) supabaseUpdates.deleted_at = updates.deleted_at;
 
       const targetId = current.id || id;
-      const { error } = await client.from(TABLES.categories).update(supabaseUpdates).eq('id', targetId);
+      let query = client.from(TABLES.categories).update(supabaseUpdates);
+      if (isUUID(targetId)) {
+        query = query.eq('id', targetId);
+      } else {
+        const targetSlug = current.slug || updates.slug || targetId;
+        query = query.eq('slug', targetSlug);
+      }
+      const { error } = await query;
       if (error) {
         console.warn('Supabase updateCategory error:', error);
         supabaseError = formatSupabaseError(error, 'categories');
@@ -833,7 +878,14 @@ export async function setCategoryColumns(id: string, patch: Record<string, any>)
     if ('active' in patch) cleanPatch.active = patch.active;
     if ('deleted_at' in patch) cleanPatch.deleted_at = patch.deleted_at;
 
-    const { error } = await client.from(TABLES.categories).update(cleanPatch).eq('id', targetId);
+    let query = client.from(TABLES.categories).update(cleanPatch);
+    if (isUUID(targetId)) {
+      query = query.eq('id', targetId);
+    } else {
+      const targetSlug = index !== -1 ? categories[index].slug : id;
+      query = query.eq('slug', targetSlug);
+    }
+    const { error } = await query;
     if (error) {
       console.error('Supabase setCategoryColumns error:', error);
       throw new Error(formatSupabaseError(error, 'categories'));
@@ -872,7 +924,14 @@ export async function permanentDeleteCategory(id: string): Promise<boolean> {
 
   const client = getSupabaseClient();
   if (client && isSupabaseConfigured()) {
-    const { error } = await client.from(TABLES.categories).delete().eq('id', targetId);
+    let query = client.from(TABLES.categories).delete();
+    if (isUUID(targetId)) {
+      query = query.eq('id', targetId);
+    } else {
+      const targetSlug = match ? match.slug : id;
+      query = query.eq('slug', targetSlug);
+    }
+    const { error } = await query;
     if (error) {
       console.error('Supabase permanentDeleteCategory error:', error);
       throw new Error(formatSupabaseError(error, 'categories'));
@@ -979,11 +1038,17 @@ export async function createItem(item: Partial<DBItem>): Promise<SaveResult<DBIt
 
   const items = readStoredItems();
   const slug = item.slug || generateUniqueSlug(name, items);
+  const newItemId = (item.id && isUUID(item.id)) ? item.id : generateUUID();
+  const rawCat = item.category_id || 'other';
+  const categories = readStoredCategories();
+  const matchedCat = categories.find((c) => c.id === rawCat || c.slug === rawCat || c.name.toLowerCase() === rawCat.toLowerCase());
+  const resolvedCatId = matchedCat && isUUID(matchedCat.id) ? matchedCat.id : rawCat;
+
   const newItem: DBItem = {
-    id: item.id || `item-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    id: newItemId,
     slug,
     name,
-    category_id: item.category_id || 'other',
+    category_id: resolvedCatId,
     price: Number(item.price) || 0,
     original_price: item.original_price ? Number(item.original_price) : undefined,
     description: item.description || '',
@@ -1004,7 +1069,7 @@ export async function createItem(item: Partial<DBItem>): Promise<SaveResult<DBIt
   const client = getSupabaseClient();
   if (client && isSupabaseConfigured()) {
     try {
-      const supabasePayload = {
+      const supabasePayload: Record<string, any> = {
         id: newItem.id,
         slug: newItem.slug,
         name: newItem.name,
@@ -1016,7 +1081,39 @@ export async function createItem(item: Partial<DBItem>): Promise<SaveResult<DBIt
         active: newItem.active,
         deleted_at: null,
       };
-      const { error } = await client.from(TABLES.items).upsert([supabasePayload]);
+
+      let { error } = await client.from(TABLES.items).upsert([supabasePayload]);
+
+      // If Postgres throws 22P02 or uuid mismatch
+      if (error && (error.code === '22P02' || error.message?.toLowerCase().includes('uuid'))) {
+        console.warn('Item upsert with ID failed, attempting insert without explicit ID...', error);
+        const fallbackItemPayload: Record<string, any> = {
+          slug: newItem.slug,
+          name: newItem.name,
+          price: newItem.price,
+          original_price: newItem.original_price ?? null,
+          description: newItem.description,
+          image: newItem.image,
+          active: newItem.active,
+          deleted_at: null,
+        };
+        if (isUUID(resolvedCatId)) {
+          fallbackItemPayload.category_id = resolvedCatId;
+        }
+        const insertRes = await client.from(TABLES.items).insert([fallbackItemPayload]).select('id').single();
+        if (!insertRes.error && insertRes.data?.id) {
+          error = null;
+          newItem.id = insertRes.data.id;
+          const idx = items.findIndex((i) => i.slug === newItem.slug);
+          if (idx >= 0) {
+            items[idx] = newItem;
+            writeStoredItems(items);
+          }
+        } else if (insertRes.error) {
+          error = insertRes.error;
+        }
+      }
+
       if (error) {
         console.warn('Supabase createItem error:', error);
         supabaseError = formatSupabaseError(error, 'items');
@@ -1073,7 +1170,14 @@ export async function updateItem(id: string, updates: Partial<DBItem>): Promise<
       if (updates.deleted_at !== undefined) supabaseUpdates.deleted_at = updates.deleted_at;
 
       const targetId = current.id || id;
-      const { error } = await client.from(TABLES.items).update(supabaseUpdates).eq('id', targetId);
+      let query = client.from(TABLES.items).update(supabaseUpdates);
+      if (isUUID(targetId)) {
+        query = query.eq('id', targetId);
+      } else {
+        const targetSlug = current.slug || updates.slug || targetId;
+        query = query.eq('slug', targetSlug);
+      }
+      const { error } = await query;
       if (error) {
         console.warn('Supabase updateItem error:', error);
         supabaseError = formatSupabaseError(error, 'items');
@@ -1102,7 +1206,14 @@ export async function setItemColumns(id: string, patch: Record<string, any>): Pr
     if ('active' in patch) cleanPatch.active = patch.active;
     if ('deleted_at' in patch) cleanPatch.deleted_at = patch.deleted_at;
 
-    const { error } = await client.from(TABLES.items).update(cleanPatch).eq('id', targetId);
+    let query = client.from(TABLES.items).update(cleanPatch);
+    if (isUUID(targetId)) {
+      query = query.eq('id', targetId);
+    } else {
+      const targetSlug = index !== -1 ? items[index].slug : id;
+      query = query.eq('slug', targetSlug);
+    }
+    const { error } = await query;
     if (error) {
       console.error('Supabase setItemColumns error:', error);
       throw new Error(formatSupabaseError(error, 'items'));
@@ -1132,7 +1243,14 @@ export async function permanentDeleteItem(id: string): Promise<boolean> {
 
   const client = getSupabaseClient();
   if (client && isSupabaseConfigured()) {
-    const { error } = await client.from(TABLES.items).delete().eq('id', targetId);
+    let query = client.from(TABLES.items).delete();
+    if (isUUID(targetId)) {
+      query = query.eq('id', targetId);
+    } else {
+      const targetSlug = match ? match.slug : id;
+      query = query.eq('slug', targetSlug);
+    }
+    const { error } = await query;
     if (error) {
       console.error('Supabase permanentDeleteItem error:', error);
       throw new Error(formatSupabaseError(error, 'items'));
@@ -1170,39 +1288,49 @@ export async function syncAllToSupabase(): Promise<{ syncedCategories: number; s
     const categories = readStoredCategories();
     const items = readStoredItems();
 
-    // Clean categories payload
-    const categoriesPayload = categories.map((c) => ({
-      id: c.id,
-      name: c.name,
-      slug: c.slug,
-      image: c.image || '',
-      active: c.active !== false,
-      deleted_at: c.deleted_at || null,
-    }));
+    // Clean categories payload - only supply id if it's a valid UUID
+    const categoriesPayload = categories.map((c) => {
+      const payload: Record<string, any> = {
+        name: c.name,
+        slug: c.slug,
+        image: c.image || '',
+        active: c.active !== false,
+        deleted_at: c.deleted_at || null,
+      };
+      if (isUUID(c.id)) {
+        payload.id = c.id;
+      }
+      return payload;
+    });
 
-    // Clean items payload
-    const itemsPayload = items.map((i) => ({
-      id: i.id,
-      slug: i.slug,
-      name: i.name,
-      category_id: i.category_id || 'other',
-      price: Number(i.price) || 0,
-      original_price: i.original_price ? Number(i.original_price) : null,
-      description: i.description || '',
-      image: i.image || '',
-      active: i.active !== false,
-      deleted_at: i.deleted_at || null,
-    }));
+    // Clean items payload - only supply id if it's a valid UUID
+    const itemsPayload = items.map((i) => {
+      const payload: Record<string, any> = {
+        slug: i.slug,
+        name: i.name,
+        category_id: i.category_id || 'other',
+        price: Number(i.price) || 0,
+        original_price: i.original_price ? Number(i.original_price) : null,
+        description: i.description || '',
+        image: i.image || '',
+        active: i.active !== false,
+        deleted_at: i.deleted_at || null,
+      };
+      if (isUUID(i.id)) {
+        payload.id = i.id;
+      }
+      return payload;
+    });
 
     if (categoriesPayload.length > 0) {
-      const { error: catErr } = await client.from(TABLES.categories).upsert(categoriesPayload, { onConflict: 'id' });
+      const { error: catErr } = await client.from(TABLES.categories).upsert(categoriesPayload, { onConflict: 'slug' });
       if (catErr) {
         throw new Error(formatSupabaseError(catErr, 'categories'));
       }
     }
 
     if (itemsPayload.length > 0) {
-      const { error: itemErr } = await client.from(TABLES.items).upsert(itemsPayload, { onConflict: 'id' });
+      const { error: itemErr } = await client.from(TABLES.items).upsert(itemsPayload, { onConflict: 'slug' });
       if (itemErr) {
         throw new Error(formatSupabaseError(itemErr, 'items'));
       }

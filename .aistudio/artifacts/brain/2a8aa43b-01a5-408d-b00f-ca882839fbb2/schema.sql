@@ -5,9 +5,9 @@
 
 -- 1. Create 'categories' table
 CREATE TABLE IF NOT EXISTS public.categories (
-    id TEXT PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT NOT NULL,
-    slug TEXT NOT NULL,
+    slug TEXT NOT NULL UNIQUE,
     image TEXT DEFAULT '',
     active BOOLEAN DEFAULT true,
     deleted_at TIMESTAMPTZ DEFAULT NULL,
@@ -17,8 +17,8 @@ CREATE TABLE IF NOT EXISTS public.categories (
 
 -- 2. Create 'items' (products) table
 CREATE TABLE IF NOT EXISTS public.items (
-    id TEXT PRIMARY KEY,
-    slug TEXT NOT NULL,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    slug TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
     category_id TEXT DEFAULT 'other',
     price NUMERIC DEFAULT 0,

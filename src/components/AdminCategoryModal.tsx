@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Upload, Check, Trash2, RefreshCw, AlertCircle, Layers, Lock } from 'lucide-react';
 import { Category } from '../types';
-import { uploadImage, generateUniqueSlug, isDefaultOtherCategory } from '../lib/data';
+import { uploadImage, generateUniqueSlug, isDefaultOtherCategory, generateUUID, isUUID } from '../lib/data';
 
 interface AdminCategoryModalProps {
   isOpen: boolean;
@@ -137,10 +137,11 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
       return;
     }
 
-    // Clean unique ID for new categories
+    // Clean unique ID for new categories - ALWAYS RFC 4122 UUID so Postgres UUID column succeeds
     const generatedId =
-      initialCategory?.id ||
-      `cat-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      (initialCategory?.id && isUUID(initialCategory.id))
+        ? initialCategory.id
+        : initialCategory?.id || generateUUID();
 
     const completeCategory: Category = {
       id: generatedId,
