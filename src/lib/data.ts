@@ -165,36 +165,7 @@ const INITIAL_CATEGORIES: DBCategory[] = [
   },
 ];
 
-const INITIAL_ITEMS: DBItem[] = [
-  {
-    id: 'sofa-luxury-velvet',
-    slug: 'sofa-luxury-velvet',
-    name: 'Luxury Velvet 3-Seater Sofa',
-    category_id: 'sofas',
-    price: 34999,
-    original_price: 45000,
-    description: 'Deep-tufted velvet sofa with gold-finish legs. Premium velvet upholstery meets ergonomic design in this statement piece.',
-    image: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=800&q=80',
-    active: true,
-    deleted_at: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'dining-teak-6-seater',
-    slug: 'dining-teak-6-seater',
-    name: 'Modern Teak Dining Table',
-    category_id: 'dining',
-    price: 28999,
-    original_price: 38000,
-    description: 'Solid teak wood dining table for 6 persons. Handcrafted from premium teak wood with a natural matte finish.',
-    image: 'https://images.unsplash.com/photo-1617806118233-18e1de247200?auto=format&fit=crop&w=800&q=80',
-    active: true,
-    deleted_at: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-];
+const INITIAL_ITEMS: DBItem[] = [];
 
 function readStoredCategories(): DBCategory[] {
   try {
