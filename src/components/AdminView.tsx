@@ -12,7 +12,6 @@ import {
   AlertTriangle,
   ArrowLeft,
   Layers,
-  Database,
   Save,
   RotateCcw,
   ArrowUp,
@@ -171,23 +170,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
               <ArrowLeft className="w-5 h-5" />
             </button>
             <HomeCraftLogo size="sm" showSubtitle={false} />
-            <span className="bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] sm:text-[11px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-              Admin Portal
-            </span>
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-3">
-            {onOpenDatabaseSettings && (
-              <button
-                onClick={onOpenDatabaseSettings}
-                className="bg-white/10 hover:bg-white/15 text-white px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer min-h-[36px]"
-                title="Supabase Database Connection Settings"
-              >
-                <Database className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="hidden sm:inline">Database</span>
-              </button>
-            )}
-
             <button
               onClick={onGoToStore}
               className="bg-white/10 hover:bg-white/15 text-white px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer min-h-[36px]"
