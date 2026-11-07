@@ -180,7 +180,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
             {onOpenDatabaseSettings && (
               <button
                 onClick={onOpenDatabaseSettings}
-                className="bg-white/10 hover:bg-white/15 text-white px-3 py-1.5 sm:py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                className="bg-white/10 hover:bg-white/15 text-white px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer min-h-[36px]"
                 title="Supabase Database Connection Settings"
               >
                 <Database className="w-3.5 h-3.5 text-emerald-400" />
@@ -190,21 +190,22 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
             <button
               onClick={onGoToStore}
-              className="bg-white/10 hover:bg-white/15 text-white px-3 py-1.5 sm:py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+              className="bg-white/10 hover:bg-white/15 text-white px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer min-h-[36px]"
               title="View Public Catalogue"
             >
               <ExternalLink className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Exit to Store</span>
+              <span className="hidden sm:inline">Exit to Store</span>
+              <span className="sm:hidden">Store</span>
             </button>
 
             {onSignOut && (
               <button
                 onClick={onSignOut}
-                className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 px-3 py-1.5 sm:py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer min-h-[36px]"
                 title="Sign Out of Admin"
               >
                 <LogOut className="w-3.5 h-3.5" />
-                <span>Sign Out</span>
+                <span className="hidden sm:inline">Sign Out</span>
               </button>
             )}
           </div>
@@ -224,11 +225,11 @@ export const AdminView: React.FC<AdminViewProps> = ({
             </p>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
             <button
               onClick={onStoreToDatabase}
               disabled={isSyncingToDb}
-              className={`px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 transition-all cursor-pointer shadow-md ${
+              className={`flex-1 sm:flex-initial px-3 sm:px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md min-h-[44px] ${
                 isSyncingToDb
                   ? 'bg-amber-500 text-white animate-pulse'
                   : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
@@ -236,13 +237,13 @@ export const AdminView: React.FC<AdminViewProps> = ({
               title="Sync catalogue with Supabase Cloud Database"
             >
               <Save className="w-4 h-4" />
-              <span>{isSyncingToDb ? 'Syncing to Supabase...' : isSupabaseConfigured() ? 'Sync to Supabase' : 'Refresh Catalogue'}</span>
+              <span>{isSyncingToDb ? 'Syncing...' : isSupabaseConfigured() ? 'Sync to Supabase' : 'Refresh Catalogue'}</span>
             </button>
 
             {activeTab === 'products' ? (
               <button
                 onClick={onAddProduct}
-                className="bg-[#E11D2A] hover:bg-[#C51322] text-white px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 transition-all cursor-pointer shadow-md shadow-red-500/20"
+                className="flex-1 sm:flex-initial bg-[#E11D2A] hover:bg-[#C51322] text-white px-3 sm:px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md shadow-red-500/20 min-h-[44px]"
               >
                 <Plus className="w-4 h-4" />
                 <span>Add {labels.itemSingular}</span>
@@ -250,7 +251,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
             ) : activeTab === 'categories' ? (
               <button
                 onClick={onAddCategory}
-                className="bg-[#E11D2A] hover:bg-[#C51322] text-white px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 transition-all cursor-pointer shadow-md shadow-red-500/20"
+                className="flex-1 sm:flex-initial bg-[#E11D2A] hover:bg-[#C51322] text-white px-3 sm:px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md shadow-red-500/20 min-h-[44px]"
               >
                 <Plus className="w-4 h-4" />
                 <span>Add {labels.groupSingular}</span>
@@ -800,7 +801,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
               ) : (
                 <div className="divide-y divide-gray-100">
                   {trashedCategories.map((cat) => (
-                    <div key={cat.id} className="py-3.5 flex items-center justify-between gap-4">
+                    <div key={cat.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
                       <div className="flex items-center gap-3">
                         {cat.image ? (
                           <img
@@ -829,7 +830,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 flex-shrink-0">
+                      <div className="flex items-center gap-2 self-end sm:self-center flex-shrink-0">
                         <button
                           onClick={async () => {
                             if (onRestoreCategory) {
@@ -839,7 +840,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                               onStoreToDatabase();
                             }
                           }}
-                          className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs"
+                          className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs min-h-[36px]"
                           title="Restore category to active catalogue"
                         >
                           <RotateCcw className="w-3.5 h-3.5" />
@@ -856,7 +857,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                               }
                             }
                           }}
-                          className="bg-red-50 hover:bg-red-100 text-red-700 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs"
+                          className="bg-red-50 hover:bg-red-100 text-red-700 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs min-h-[36px]"
                           title="Purge permanently"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -890,7 +891,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
               ) : (
                 <div className="divide-y divide-gray-100">
                   {trashedItems.map((item) => (
-                    <div key={item.id} className="py-3.5 flex items-center justify-between gap-4">
+                    <div key={item.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
                       <div className="flex items-center gap-3">
                         {item.image ? (
                           <img
@@ -919,7 +920,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 flex-shrink-0">
+                      <div className="flex items-center gap-2 self-end sm:self-center flex-shrink-0">
                         <button
                           onClick={async () => {
                             if (onRestoreProduct) {
@@ -929,7 +930,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                               onStoreToDatabase();
                             }
                           }}
-                          className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs"
+                          className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs min-h-[36px]"
                           title="Restore product to active catalogue"
                         >
                           <RotateCcw className="w-3.5 h-3.5" />
@@ -946,7 +947,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                               }
                             }
                           }}
-                          className="bg-red-50 hover:bg-red-100 text-red-700 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs"
+                          className="bg-red-50 hover:bg-red-100 text-red-700 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs min-h-[36px]"
                           title="Purge permanently"
                         >
                           <Trash2 className="w-3.5 h-3.5" />

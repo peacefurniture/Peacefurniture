@@ -158,10 +158,10 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-3 sm:p-4 border-t border-gray-100 bg-white sticky bottom-0 z-10 flex items-center justify-end flex-shrink-0">
+        <div className="p-3 sm:p-4 border-t border-gray-100 bg-white sticky bottom-0 z-10 flex items-center justify-end flex-shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <button
             onClick={onClose}
-            className="w-full sm:w-auto bg-[#E11D2A] hover:bg-[#C51322] text-white px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-red-500/20"
+            className="w-full sm:w-auto bg-[#E11D2A] hover:bg-[#C51322] text-white px-6 py-3 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-red-500/20 min-h-[44px]"
           >
             <span>Close Window</span>
           </button>

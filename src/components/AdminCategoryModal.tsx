@@ -375,12 +375,12 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
         </form>
 
         {/* Footer */}
-        <div className="p-4 border-t border-gray-100 bg-white sticky bottom-0 z-10 flex items-center justify-end gap-2.5 flex-shrink-0">
+        <div className="p-4 border-t border-gray-100 bg-white sticky bottom-0 z-10 flex items-center justify-end gap-2.5 flex-shrink-0 pb-[max(1rem,env(safe-area-inset-bottom))]">
           <button
             type="button"
             disabled={isSubmitting}
             onClick={onClose}
-            className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl border border-gray-300 text-gray-700 text-xs font-semibold hover:bg-gray-50 cursor-pointer text-center disabled:opacity-50"
+            className="flex-1 sm:flex-initial px-4 py-3 sm:py-2.5 rounded-xl border border-gray-300 text-gray-700 text-xs font-semibold hover:bg-gray-50 cursor-pointer text-center disabled:opacity-50 min-h-[44px]"
           >
             Cancel
           </button>
@@ -389,7 +389,7 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
             form="admin-category-form"
             disabled={isSubmitting || isUploading}
             onClick={() => handleSubmit()}
-            className="flex-1 sm:flex-initial bg-[#E11D2A] hover:bg-[#C51322] text-white px-5 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-red-500/20 disabled:opacity-50"
+            className="flex-1 sm:flex-initial bg-[#E11D2A] hover:bg-[#C51322] text-white px-5 py-3 sm:py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-red-500/20 disabled:opacity-50 min-h-[44px]"
           >
             {isSubmitting ? (
               <>

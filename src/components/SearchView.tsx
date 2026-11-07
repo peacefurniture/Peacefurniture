@@ -53,8 +53,8 @@ export const SearchView: React.FC<SearchViewProps> = ({
   const displayCount = totalResultsCount ?? results.length;
 
   return (
-    <div className="pb-16 bg-[#FAFAFA] min-h-screen">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-5">
+    <div className="pb-24 sm:pb-16 bg-[#FAFAFA] min-h-screen">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 pt-4 sm:pt-6">
         {/* Title & Subtitle */}
         <div className="mb-4">
           <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-950 tracking-tight">
@@ -217,9 +217,9 @@ export const SearchView: React.FC<SearchViewProps> = ({
           </button>
         </div>
 
-        {/* Search Results Grid - Responsive: 1-2 on mobile, 3 on tablet, 4 on desktop */}
+        {/* Search Results Grid - Responsive: 2 on mobile, 2-3 on tablet, 4 on desktop */}
         {results.length > 0 ? (
-          <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5 sm:gap-5 lg:gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4 md:gap-5 lg:gap-6">
             {results.map((item) => {
               const match = activeImageSearch && aiSearchMatches?.similarMatches?.find(
                 (m: any) => m.productId === item.id || m.product?.id === item.id

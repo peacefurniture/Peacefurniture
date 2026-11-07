@@ -68,7 +68,7 @@ export const FilterModal: React.FC<FilterModalProps> = ({
             <label className="text-xs font-bold uppercase tracking-wider text-gray-700 block mb-2.5">
               Category
             </label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {categories
                 .filter((cat) => cat.isActive !== false)
                 .slice(0, 9)
@@ -76,7 +76,7 @@ export const FilterModal: React.FC<FilterModalProps> = ({
                 <button
                   key={cat.id}
                   onClick={() => onUpdateFilters({ ...filters, category: cat.id })}
-                  className={`text-xs py-2 px-2.5 rounded-xl border font-semibold truncate transition-all cursor-pointer ${
+                  className={`text-xs py-2 px-2.5 rounded-xl border font-semibold truncate transition-all cursor-pointer min-h-[38px] ${
                     filters.category === cat.id
                       ? 'bg-[#E11D2A] text-white border-[#E11D2A] shadow-xs'
                       : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
@@ -186,10 +186,10 @@ export const FilterModal: React.FC<FilterModalProps> = ({
         </div>
 
         {/* Footer actions */}
-        <div className="p-4 sm:p-5 border-t border-gray-100 bg-gray-50 flex items-center justify-between gap-3">
+        <div className="p-4 sm:p-5 border-t border-gray-100 bg-gray-50 flex items-center justify-between gap-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
           <button
             onClick={onResetFilters}
-            className="text-gray-600 hover:text-gray-900 text-xs font-semibold flex items-center gap-1.5 px-3 py-2 rounded-xl hover:bg-gray-200/60 transition-colors cursor-pointer"
+            className="text-gray-600 hover:text-gray-900 text-xs font-semibold flex items-center gap-1.5 px-3 py-2.5 rounded-xl hover:bg-gray-200/60 transition-colors cursor-pointer min-h-[44px]"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             <span>Reset All</span>
@@ -197,7 +197,7 @@ export const FilterModal: React.FC<FilterModalProps> = ({
 
           <button
             onClick={onClose}
-            className="bg-[#E11D2A] hover:bg-[#C51322] text-white text-xs sm:text-sm font-bold px-6 py-2.5 rounded-xl transition-colors cursor-pointer shadow-sm flex items-center gap-1.5"
+            className="bg-[#E11D2A] hover:bg-[#C51322] text-white text-xs sm:text-sm font-bold px-5 sm:px-6 py-2.5 rounded-xl transition-colors cursor-pointer shadow-sm flex items-center gap-1.5 min-h-[44px]"
           >
             <Check className="w-4 h-4" />
             <span>Show {totalFilteredCount} Items</span>

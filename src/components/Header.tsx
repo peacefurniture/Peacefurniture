@@ -37,47 +37,47 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Center Desktop Navigation: Page 1 (Catalogue), Page 2 (Search), Admin */}
-        <nav className="hidden md:flex items-center gap-1 bg-white/5 border border-white/10 rounded-full px-2 py-1">
+        <nav className="hidden md:flex items-center gap-1 bg-white/5 border border-white/10 rounded-full p-1">
           <button
             onClick={() => onNavigate('home')}
-            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+            className={`px-3 lg:px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
               currentView === 'home'
-                ? 'bg-[#E11D2A]' + ' text-white shadow-sm'
+                ? 'bg-[#E11D2A] text-white shadow-sm'
                 : 'text-gray-300 hover:text-white hover:bg-white/5'
             }`}
           >
-            Furniture Catalogue
+            <span className="md:hidden lg:inline">Furniture </span>Catalogue
           </button>
           <button
             onClick={() => onNavigate('search')}
-            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3 lg:px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               currentView === 'search'
-                ? 'bg-[#E11D2A]' + ' text-white shadow-sm'
+                ? 'bg-[#E11D2A] text-white shadow-sm'
                 : 'text-gray-300 hover:text-white hover:bg-white/5'
             }`}
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            <span>Search & AI Image Search</span>
+            <span>Search<span className="hidden lg:inline"> & AI Image</span></span>
           </button>
           <button
             onClick={() => onNavigate('admin')}
-            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3 lg:px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               currentView === 'admin'
-                ? 'bg-[#E11D2A]' + ' text-white shadow-sm'
+                ? 'bg-[#E11D2A] text-white shadow-sm'
                 : 'text-gray-300 hover:text-white hover:bg-white/5'
             }`}
           >
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Admin Portal</span>
+            <span>Admin<span className="hidden lg:inline"> Portal</span></span>
           </button>
         </nav>
 
         {/* Right actions */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           {currentView === 'home' && (
             <button
               onClick={() => onNavigate('search')}
-              className="text-white/90 hover:text-white p-2 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+              className="text-white/90 hover:text-white p-2.5 rounded-xl hover:bg-white/10 transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
               aria-label="Search"
               title="Search furniture"
             >
@@ -88,7 +88,7 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Admin shortcut button for tablet/mobile */}
           <button
             onClick={() => onNavigate('admin')}
-            className="md:hidden text-white/90 hover:text-white p-2 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+            className="md:hidden text-white/90 hover:text-white p-2.5 rounded-xl hover:bg-white/10 transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
             aria-label="Admin Portal"
             title="Admin Portal"
           >
@@ -98,7 +98,7 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Menu button */}
           <button
             onClick={onOpenMenu}
-            className="text-white/90 hover:text-white p-2 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+            className="text-white/90 hover:text-white p-2.5 rounded-xl hover:bg-white/10 transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
             aria-label="Open menu"
             title="Menu"
           >

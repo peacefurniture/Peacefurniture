@@ -85,7 +85,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onBack }) => {
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
               <span>Supabase Connected</span>
               {currentSupabaseUrl && (
-                <span className="text-[10px] text-emerald-600 font-mono hidden xs:inline">
+                <span className="text-[10px] text-emerald-600 font-mono hidden sm:inline">
                   ({currentSupabaseUrl.replace(/^https?:\/\//, '').split('.')[0]})
                 </span>
               )}

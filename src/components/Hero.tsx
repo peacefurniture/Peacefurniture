@@ -81,10 +81,11 @@ export const Hero: React.FC<HeroProps> = ({
           <button
             type="button"
             onClick={onOpenImageSearch}
-            className="flex-shrink-0 bg-[#E11D2A] hover:bg-[#C51322] text-white px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
+            className="flex-shrink-0 bg-[#E11D2A] hover:bg-[#C51322] text-white px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm min-h-[40px] sm:min-h-[44px]"
           >
             <Camera className="w-4 h-4" />
-            <span className="hidden xs:inline sm:inline">Search by Image</span>
+            <span className="hidden sm:inline">Search by Image</span>
+            <span className="sm:hidden text-xs">AI Photo</span>
           </button>
         </form>
       </div>

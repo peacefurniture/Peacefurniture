@@ -40,7 +40,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       : categories.find((c) => c.id === selectedCategory)?.name || 'All Furniture';
 
   return (
-    <div className="pb-16 bg-[#FAFAFA] min-h-screen">
+    <div className="pb-24 sm:pb-16 bg-[#FAFAFA] min-h-screen">
       {/* Hero with Banner & Floating Search Bar */}
       <Hero
         searchQuery={searchQuery}
@@ -74,14 +74,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
           {/* Sort By Dropdown */}
           <div className="flex items-center gap-1.5 sm:gap-2">
-            <span className="text-xs sm:text-sm font-medium text-gray-600 hidden xs:inline">
+            <span className="text-xs sm:text-sm font-medium text-gray-600 hidden sm:inline">
               Sort by
             </span>
             <div className="relative">
               <select
                 value={filters.sortBy}
                 onChange={(e) => onSortChange(e.target.value as FilterState['sortBy'])}
-                className="appearance-none bg-white border border-gray-200 hover:border-gray-300 text-gray-800 text-xs sm:text-sm font-semibold rounded-xl pl-3 pr-8 py-1.5 sm:py-2 focus:outline-none focus:ring-2 focus:ring-[#E11D2A]/20 cursor-pointer shadow-xs"
+                className="appearance-none bg-white border border-gray-200 hover:border-gray-300 text-gray-800 text-xs sm:text-sm font-semibold rounded-xl pl-3 pr-8 py-1.5 sm:py-2 focus:outline-none focus:ring-2 focus:ring-[#E11D2A]/20 cursor-pointer shadow-xs min-h-[38px] sm:min-h-[42px]"
               >
                 <option value="popular">Popular</option>
                 <option value="price-asc">Price: Low to High</option>
@@ -94,9 +94,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </div>
         </div>
 
-        {/* Product Cards Grid - Responsive: 1-2 on mobile, 3 on tablet, 4 on desktop */}
+        {/* Product Cards Grid - Responsive: 2 on mobile, 2-3 on tablet, 4 on desktop */}
         {products.length > 0 ? (
-          <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5 sm:gap-5 lg:gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4 md:gap-5 lg:gap-6">
             {products.map((item) => (
               <ProductCard
                 key={item.id}

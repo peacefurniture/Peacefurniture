@@ -495,7 +495,7 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
           </div>
 
           {/* Pricing & Stock */}
-          <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
             <div>
               <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
                 Selling Price (₹) *
@@ -530,14 +530,14 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
               />
             </div>
 
-            <div className="xs:col-span-2 sm:col-span-1">
+            <div className="col-span-1">
               <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
                 Inventory Stock
               </label>
               <button
                 type="button"
                 onClick={() => setFormData({ ...formData, inStock: !formData.inStock })}
-                className={`w-full py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                className={`w-full py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer border min-h-[42px] ${
                   formData.inStock
                     ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
                     : 'bg-red-50 text-red-700 border-red-300'
@@ -646,11 +646,11 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
         </form>
 
         {/* Sticky Footer on Mobile & Desktop */}
-        <div className="p-3 sm:p-4 border-t border-gray-100 bg-white sticky bottom-0 z-10 flex items-center justify-end gap-2.5 flex-shrink-0">
+        <div className="p-3 sm:p-4 border-t border-gray-100 bg-white sticky bottom-0 z-10 flex items-center justify-end gap-2.5 flex-shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 sm:flex-initial px-4 py-2.5 sm:py-2 rounded-xl border border-gray-300 text-gray-700 text-xs sm:text-sm font-semibold hover:bg-gray-50 transition-colors cursor-pointer text-center"
+            className="flex-1 sm:flex-initial px-4 py-3 sm:py-2 rounded-xl border border-gray-300 text-gray-700 text-xs sm:text-sm font-semibold hover:bg-gray-50 transition-colors cursor-pointer text-center min-h-[44px]"
           >
             Cancel
           </button>
@@ -658,7 +658,7 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
             type="submit"
             form="admin-product-form"
             onClick={handleSubmit}
-            className="flex-1 sm:flex-initial bg-[#E11D2A] hover:bg-[#C51322] active:bg-[#B0101E] text-white px-5 sm:px-6 py-2.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md shadow-red-500/20"
+            className="flex-1 sm:flex-initial bg-[#E11D2A] hover:bg-[#C51322] active:bg-[#B0101E] text-white px-5 sm:px-6 py-3 sm:py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md shadow-red-500/20 min-h-[44px]"
           >
             <Check className="w-4 h-4" />
             <span>{initialProduct ? 'Save Changes' : 'Add Product'}</span>

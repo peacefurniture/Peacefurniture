@@ -34,12 +34,12 @@ export const HomeCraftLogo: React.FC<HomeCraftLogoProps> = ({
       {/* Brand Typography */}
       <div className="flex flex-col justify-center leading-none">
         <div className="flex items-center">
-          <span className="font-extrabold tracking-tight text-sm sm:text-base lg:text-lg whitespace-nowrap">
+          <span className="font-extrabold tracking-tight text-xs sm:text-base lg:text-lg whitespace-nowrap">
             <span className="text-white">Peace</span> <span className="text-[#E11D2A]">Furniture House</span>
           </span>
         </div>
         {showSubtitle && (
-          <span className="text-[9px] sm:text-[10px] tracking-wider text-gray-400 font-semibold uppercase mt-0.5">
+          <span className="text-[8px] sm:text-[10px] tracking-wider text-gray-400 font-semibold uppercase mt-0.5">
             Furniture Catalogue
           </span>
         )}

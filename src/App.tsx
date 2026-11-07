@@ -729,35 +729,35 @@ export default function App() {
       )}
 
       {/* Persistent Mobile Bottom Navigation Bar */}
-      <nav aria-label="Mobile Bottom Navigation" className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-gray-200/80 px-4 py-2 flex items-center justify-around shadow-lg">
+      <nav aria-label="Mobile Bottom Navigation" className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-gray-200/90 px-3 py-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] flex items-center justify-around shadow-lg">
         <button
           onClick={() => setCurrentView('home')}
-          className={`flex flex-col items-center gap-1 transition-colors cursor-pointer ${
-            currentView === 'home' ? 'text-[#E11D2A]' : 'text-gray-400 hover:text-gray-600'
+          className={`flex flex-col items-center justify-center gap-1 transition-colors cursor-pointer min-h-[44px] min-w-[64px] rounded-xl ${
+            currentView === 'home' ? 'text-[#E11D2A] font-extrabold' : 'text-gray-500 hover:text-gray-800'
           }`}
         >
           <Home className="w-5 h-5" />
-          <span className="text-[10px] font-bold">Catalogue</span>
+          <span className="text-[10px] font-bold tracking-tight">Catalogue</span>
         </button>
 
         <button
           onClick={() => setCurrentView('search')}
-          className={`flex flex-col items-center gap-1 transition-colors cursor-pointer ${
-            currentView === 'search' ? 'text-[#E11D2A]' : 'text-gray-400 hover:text-gray-600'
+          className={`flex flex-col items-center justify-center gap-1 transition-colors cursor-pointer min-h-[44px] min-w-[64px] rounded-xl ${
+            currentView === 'search' ? 'text-[#E11D2A] font-extrabold' : 'text-gray-500 hover:text-gray-800'
           }`}
         >
           <Search className="w-5 h-5" />
-          <span className="text-[10px] font-bold">Search AI</span>
+          <span className="text-[10px] font-bold tracking-tight">Search AI</span>
         </button>
 
         <button
           onClick={() => setCurrentView('admin')}
-          className={`flex flex-col items-center gap-1 transition-colors cursor-pointer ${
-            currentView === 'admin' ? 'text-[#E11D2A]' : 'text-gray-400 hover:text-emerald-500'
+          className={`flex flex-col items-center justify-center gap-1 transition-colors cursor-pointer min-h-[44px] min-w-[64px] rounded-xl ${
+            currentView === 'admin' ? 'text-[#E11D2A] font-extrabold' : 'text-gray-500 hover:text-emerald-600'
           }`}
         >
-          <ShieldCheck className={`w-5 h-5 ${currentView === 'admin' ? 'text-[#E11D2A]' : 'text-emerald-500'}`} />
-          <span className="text-[10px] font-bold">Admin</span>
+          <ShieldCheck className={`w-5 h-5 ${currentView === 'admin' ? 'text-[#E11D2A]' : 'text-emerald-600'}`} />
+          <span className="text-[10px] font-bold tracking-tight">Admin</span>
         </button>
       </nav>
 
