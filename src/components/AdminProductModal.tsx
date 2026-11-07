@@ -23,6 +23,7 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragActive, setDragActive] = useState(false);
   const [uploadedImageName, setUploadedImageName] = useState<string>('');
+  const [nameError, setNameError] = useState<string>('');
   const [imageError, setImageError] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
 
@@ -83,6 +84,7 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
       setTagInput(initialProduct.tags?.join(', ') || '');
       setUploadedImageName(initialProduct.name ? `${initialProduct.name} Photo` : 'Existing Product Image');
       setImageError('');
+      setNameError('');
     } else {
       const defaultCatId = resolveSelectedCategoryId(null);
       setFormData({
@@ -113,6 +115,7 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
       setUploadedImageName('');
       setTagInput('furniture, modern');
       setImageError('');
+      setNameError('');
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -172,9 +175,16 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.name?.trim()) return;
+  const handleSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setNameError('');
+    setImageError('');
+
+    const productNameTrimmed = formData.name?.trim() || '';
+    if (!productNameTrimmed) {
+      setNameError('Please enter a product title.');
+      return;
+    }
 
     if (!formData.image) {
       setImageError('Please upload an image for this product.');
@@ -186,7 +196,6 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
       .map((t) => t.trim().toLowerCase())
       .filter(Boolean);
 
-    const productNameTrimmed = formData.name.trim();
     const generatedSlug = generateUniqueSlug(
       productNameTrimmed,
       existingProducts,
@@ -246,7 +255,7 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
         </div>
 
         {/* Scrollable Form Body */}
-        <form onSubmit={handleSubmit} className="overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-5 flex-1">
+        <form id="admin-product-form" onSubmit={handleSubmit} className="overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-5 flex-1">
           {/* Active / Inactive Status Field */}
           <div className="bg-gray-50/90 border border-gray-200 rounded-2xl p-3.5 sm:p-4 flex items-center justify-between gap-3">
             <div>
@@ -430,10 +439,21 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
                 type="text"
                 required
                 value={formData.name || ''}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onChange={(e) => {
+                  setFormData({ ...formData, name: e.target.value });
+                  if (nameError) setNameError('');
+                }}
                 placeholder="e.g. 6 Seater Wooden Dining Table"
-                className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-gray-900 focus:outline-none focus:border-[#E11D2A] focus:ring-1 focus:ring-[#E11D2A]"
+                className={`w-full bg-white border ${
+                  nameError ? 'border-red-400 focus:border-red-500 focus:ring-red-500' : 'border-gray-200 focus:border-[#E11D2A] focus:ring-[#E11D2A]'
+                } rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-gray-900 focus:outline-none focus:ring-1`}
               />
+              {nameError && (
+                <div className="flex items-center gap-1.5 text-xs text-red-600 font-semibold mt-1.5">
+                  <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span>{nameError}</span>
+                </div>
+              )}
             </div>
 
             <div>
@@ -630,7 +650,8 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
             Cancel
           </button>
           <button
-            type="button"
+            type="submit"
+            form="admin-product-form"
             onClick={handleSubmit}
             className="flex-1 sm:flex-initial bg-[#E11D2A] hover:bg-[#C51322] active:bg-[#B0101E] text-white px-5 sm:px-6 py-2.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md shadow-red-500/20"
           >

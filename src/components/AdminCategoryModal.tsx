@@ -21,6 +21,7 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragActive, setDragActive] = useState(false);
   const [uploadedImageName, setUploadedImageName] = useState<string>('');
+  const [nameError, setNameError] = useState<string>('');
   const [imageError, setImageError] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -36,6 +37,7 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
     if (initialCategory) {
       setFormData({ ...initialCategory, isActive: initialCategory.isActive ?? true });
       setUploadedImageName(initialCategory.name ? `${initialCategory.name} Photo` : 'Existing Category Image');
+      setNameError('');
       setImageError('');
       setSubmitError('');
     } else {
@@ -45,6 +47,7 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
         isActive: true,
       });
       setUploadedImageName('');
+      setNameError('');
       setImageError('');
       setSubmitError('');
       if (fileInputRef.current) {
@@ -101,22 +104,25 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
 
   const isDefaultCategory = isDefaultOtherCategory(initialCategory);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setNameError('');
+    setImageError('');
+    setSubmitError('');
+
     if (isDefaultCategory) {
       setImageError("The default 'Other' category is permanent and cannot be edited.");
       return;
     }
-    if (!formData.name?.trim()) return;
 
-    const nameTrimmed = formData.name.trim();
-    if (nameTrimmed.toLowerCase() === 'other') {
-      setImageError("The 'Other' category already exists as the permanent default category. Please choose a different category name.");
+    const nameTrimmed = formData.name?.trim() || '';
+    if (!nameTrimmed) {
+      setNameError('Please enter a category name.');
       return;
     }
 
-    if (!formData.image) {
-      setImageError('Please provide an image for this category.');
+    if (nameTrimmed.toLowerCase() === 'other') {
+      setNameError("The 'Other' category already exists as the permanent default category. Please choose a different category name.");
       return;
     }
 
@@ -127,28 +133,28 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
     );
 
     if (generatedSlug.toLowerCase() === 'other') {
-      setImageError("The slug 'other' is reserved for the default category. Please choose a different category name.");
+      setNameError("The slug 'other' is reserved for the default category. Please choose a different category name.");
       return;
     }
 
+    // Clean unique ID for new categories
     const generatedId =
       initialCategory?.id ||
-      generatedSlug ||
-      `cat-${Date.now()}`;
+      `cat-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
     const completeCategory: Category = {
       id: generatedId,
       slug: generatedSlug,
       name: nameTrimmed,
-      image: formData.image,
+      image: formData.image?.trim() || '',
       count: initialCategory?.count || 0,
       isActive: formData.isActive ?? true,
     };
 
     setIsSubmitting(true);
-    setSubmitError('');
     try {
       await onSave(completeCategory);
+      onClose();
     } catch (err: any) {
       console.error('Category Save Error:', err);
       setSubmitError(err.message || 'Failed to save category');
@@ -192,7 +198,7 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
         )}
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="overflow-y-auto p-4 sm:p-6 space-y-4 flex-1">
+        <form id="admin-category-form" onSubmit={handleSubmit} className="overflow-y-auto p-4 sm:p-6 space-y-4 flex-1">
           {/* Active / Inactive Status Field */}
           <div className="bg-gray-50/90 border border-gray-200 rounded-2xl p-3.5 sm:p-4 flex items-center justify-between gap-3">
             <div>
@@ -253,19 +259,30 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
               type="text"
               required
               value={formData.name || ''}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="e.g. Lighting, Recliners, Bookshelves"
-              className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-gray-900 focus:outline-none focus:border-[#E11D2A] focus:ring-1 focus:ring-[#E11D2A]"
+              onChange={(e) => {
+                setFormData({ ...formData, name: e.target.value });
+                if (nameError) setNameError('');
+              }}
+              placeholder="e.g. Dining Tables, Recliners, Bookshelves"
+              className={`w-full bg-white border ${
+                nameError ? 'border-red-400 focus:border-red-500 focus:ring-red-500' : 'border-gray-200 focus:border-[#E11D2A] focus:ring-[#E11D2A]'
+              } rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-gray-900 focus:outline-none focus:ring-1`}
             />
+            {nameError && (
+              <div className="flex items-center gap-1.5 text-xs text-red-600 font-semibold mt-1.5">
+                <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                <span>{nameError}</span>
+              </div>
+            )}
           </div>
 
           {/* Category Image Upload */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
-                Category Thumbnail *
+                Category Thumbnail <span className="text-gray-400 font-normal lowercase">(optional)</span>
               </label>
-              <span className="text-[11px] text-gray-400">Tap to upload photo</span>
+              <span className="text-[11px] text-gray-400">Optional photo</span>
             </div>
 
             <input
@@ -334,7 +351,7 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
                   <Upload className="w-6 h-6 text-[#E11D2A] mx-auto mb-2" />
                 )}
                 <p className="font-bold text-gray-900 text-xs mb-1">
-                  {isUploading ? 'Processing image...' : 'Tap to upload category image'}
+                  {isUploading ? 'Processing image...' : 'Tap to upload category image (optional)'}
                 </p>
                 <p className="text-[11px] text-gray-400">PNG, JPG, WEBP under 5MB</p>
               </div>
@@ -367,20 +384,21 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
             Cancel
           </button>
           <button
-            type="button"
+            type="submit"
+            form="admin-category-form"
             disabled={isSubmitting || isUploading}
-            onClick={handleSubmit}
+            onClick={() => handleSubmit()}
             className="flex-1 sm:flex-initial bg-[#E11D2A] hover:bg-[#C51322] text-white px-5 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-red-500/20 disabled:opacity-50"
           >
             {isSubmitting ? (
               <>
                 <RefreshCw className="w-4 h-4 animate-spin" />
-                <span>Saving to Supabase...</span>
+                <span>Saving Category...</span>
               </>
             ) : (
               <>
                 <Check className="w-4 h-4" />
-                <span>{initialCategory ? 'Save Changes' : 'Add Category'}</span>
+                <span>{initialCategory ? 'Save Changes' : 'Create Category'}</span>
               </>
             )}
           </button>
@@ -389,3 +407,4 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
     </div>
   );
 };
+

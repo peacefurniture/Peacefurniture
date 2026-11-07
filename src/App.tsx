@@ -350,16 +350,19 @@ export default function App() {
       });
 
       await loadData();
-      showToast(
-        res.isSupabaseSynced
-          ? `✅ ${isEdit ? 'Updated' : 'Created'} "${product.name}" in Supabase!`
-          : `✅ ${isEdit ? 'Updated' : 'Added'} "${product.name}" in catalogue!`
-      );
-      setEditingAdminProduct(null);
-      setIsAdminProductModalOpen(false);
+      if (res.isSupabaseSynced) {
+        showToast(`✅ ${isEdit ? 'Updated' : 'Created'} "${product.name}" in Supabase & catalogue!`);
+      } else if (res.supabaseError) {
+        showToast(`⚠️ Saved "${product.name}" in catalogue! (Supabase: ${res.supabaseError})`);
+      } else {
+        showToast(`✅ ${isEdit ? 'Updated' : 'Added'} "${product.name}" in catalogue!`);
+      }
     } catch (err: any) {
       console.error('Save product error:', err);
       showToast(`❌ ${err.message || 'Failed to save product'}`);
+    } finally {
+      setEditingAdminProduct(null);
+      setIsAdminProductModalOpen(false);
     }
   };
 
@@ -470,16 +473,20 @@ export default function App() {
       });
 
       await loadData();
-      showToast(
-        res.isSupabaseSynced
-          ? `✅ ${isEdit ? 'Updated' : 'Created'} "${category.name}" in Supabase!`
-          : `✅ ${isEdit ? 'Updated' : 'Added'} "${category.name}" in catalogue!`
-      );
-      setEditingAdminCategory(null);
-      setIsAdminCategoryModalOpen(false);
+
+      if (res.isSupabaseSynced) {
+        showToast(`✅ ${isEdit ? 'Updated' : 'Created'} "${category.name}" in Supabase & catalogue!`);
+      } else if (res.supabaseError) {
+        showToast(`⚠️ Saved "${category.name}" in catalogue! (Supabase notice: ${res.supabaseError})`);
+      } else {
+        showToast(`✅ ${isEdit ? 'Updated' : 'Created'} "${category.name}" in catalogue!`);
+      }
     } catch (err: any) {
       console.error('Save category error:', err);
       showToast(`❌ ${err.message || 'Failed to save category'}`);
+    } finally {
+      setEditingAdminCategory(null);
+      setIsAdminCategoryModalOpen(false);
     }
   };
 

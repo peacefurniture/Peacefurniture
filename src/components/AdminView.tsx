@@ -549,7 +549,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 />
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 w-full md:w-auto justify-between md:justify-end">
                 <select
                   value={categoryVisibilityFilter}
                   onChange={(e) => setCategoryVisibilityFilter(e.target.value as any)}
@@ -559,6 +559,13 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   <option value="active">Active Only</option>
                   <option value="hidden">Hidden Only</option>
                 </select>
+                <button
+                  onClick={onAddCategory}
+                  className="bg-[#E11D2A] hover:bg-[#C51322] text-white px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add {labels.groupSingular}</span>
+                </button>
               </div>
             </div>
 

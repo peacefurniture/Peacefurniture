@@ -685,7 +685,13 @@ export async function getCategory(idOrSlug: string): Promise<DBCategory | null> 
   return cat || null;
 }
 
-export async function createCategory(category: Partial<DBCategory>): Promise<DBCategory> {
+export interface SaveResult<T> {
+  data: T;
+  isSupabaseSynced: boolean;
+  supabaseError?: string | null;
+}
+
+export async function createCategory(category: Partial<DBCategory>): Promise<SaveResult<DBCategory>> {
   const name = category.name?.trim();
   if (!name) throw new Error('Category name is required.');
   const typedSlug = category.slug?.trim();
@@ -709,28 +715,7 @@ export async function createCategory(category: Partial<DBCategory>): Promise<DBC
     updated_at: new Date().toISOString(),
   };
 
-  const client = getSupabaseClient();
-  if (client && isSupabaseConfigured()) {
-    // CRITICAL: Clean payload for Supabase - ONLY columns that exist in public.categories!
-    // Supabase table schema: id, name, slug, image, active, deleted_at, created_at, updated_at
-    // 'item_count' MUST be omitted because PostgREST rejects any payload containing non-existent columns.
-    const supabasePayload = {
-      id: newCat.id,
-      name: newCat.name,
-      slug: newCat.slug,
-      image: newCat.image || '',
-      active: newCat.active,
-      deleted_at: null,
-    };
-
-    const { error } = await client.from(TABLES.categories).upsert([supabasePayload]);
-    if (error) {
-      console.error('Supabase createCategory error:', error);
-      throw new Error(formatSupabaseError(error, 'categories'));
-    }
-  }
-
-  // Update local cache only if Supabase succeeded or not configured
+  // 1. ALWAYS write to local storage first, so creating a category NEVER fails
   const existingIdx = categories.findIndex((c) => c.id === newCat.id || c.slug === newCat.slug);
   if (existingIdx >= 0) {
     categories[existingIdx] = newCat;
@@ -739,10 +724,39 @@ export async function createCategory(category: Partial<DBCategory>): Promise<DBC
   }
   writeStoredCategories(categories);
 
-  return newCat;
+  // 2. Sync to Supabase if client is configured
+  let isSupabaseSynced = false;
+  let supabaseError: string | null = null;
+  const client = getSupabaseClient();
+  if (client && isSupabaseConfigured()) {
+    try {
+      // Clean payload for Supabase - ONLY columns that exist in public.categories
+      const supabasePayload = {
+        id: newCat.id,
+        name: newCat.name,
+        slug: newCat.slug,
+        image: newCat.image || '',
+        active: newCat.active,
+        deleted_at: null,
+      };
+
+      const { error } = await client.from(TABLES.categories).upsert([supabasePayload]);
+      if (error) {
+        console.warn('Supabase createCategory error:', error);
+        supabaseError = formatSupabaseError(error, 'categories');
+      } else {
+        isSupabaseSynced = true;
+      }
+    } catch (err: any) {
+      console.warn('Supabase createCategory network error:', err);
+      supabaseError = err.message || 'Could not connect to Supabase';
+    }
+  }
+
+  return { data: newCat, isSupabaseSynced, supabaseError };
 }
 
-export async function updateCategory(id: string, updates: Partial<DBCategory>): Promise<DBCategory> {
+export async function updateCategory(id: string, updates: Partial<DBCategory>): Promise<SaveResult<DBCategory>> {
   if (isDefaultOtherCategory(id) || (updates.slug && updates.slug.toLowerCase() === 'other')) {
     throw new Error("Default category 'Other' cannot be edited.");
   }
@@ -765,31 +779,42 @@ export async function updateCategory(id: string, updates: Partial<DBCategory>): 
     updated_at: new Date().toISOString(),
   };
 
-  const client = getSupabaseClient();
-  if (client && isSupabaseConfigured()) {
-    const supabaseUpdates: Record<string, any> = {
-      updated_at: new Date().toISOString(),
-    };
-    if (updates.name !== undefined) supabaseUpdates.name = updates.name.trim();
-    if (updates.slug !== undefined) supabaseUpdates.slug = updates.slug.trim();
-    if (updates.image !== undefined) supabaseUpdates.image = updates.image || '';
-    if (updates.active !== undefined) supabaseUpdates.active = updates.active;
-    if (updates.deleted_at !== undefined) supabaseUpdates.deleted_at = updates.deleted_at;
-
-    const targetId = current.id || id;
-    const { error } = await client.from(TABLES.categories).update(supabaseUpdates).eq('id', targetId);
-    if (error) {
-      console.error('Supabase updateCategory error:', error);
-      throw new Error(formatSupabaseError(error, 'categories'));
-    }
-  }
-
+  // 1. Update local cache
   if (index !== -1) {
     categories[index] = updated;
     writeStoredCategories(categories);
   }
 
-  return updated;
+  // 2. Sync to Supabase
+  let isSupabaseSynced = false;
+  let supabaseError: string | null = null;
+  const client = getSupabaseClient();
+  if (client && isSupabaseConfigured()) {
+    try {
+      const supabaseUpdates: Record<string, any> = {
+        updated_at: new Date().toISOString(),
+      };
+      if (updates.name !== undefined) supabaseUpdates.name = updates.name.trim();
+      if (updates.slug !== undefined) supabaseUpdates.slug = updates.slug.trim();
+      if (updates.image !== undefined) supabaseUpdates.image = updates.image || '';
+      if (updates.active !== undefined) supabaseUpdates.active = updates.active;
+      if (updates.deleted_at !== undefined) supabaseUpdates.deleted_at = updates.deleted_at;
+
+      const targetId = current.id || id;
+      const { error } = await client.from(TABLES.categories).update(supabaseUpdates).eq('id', targetId);
+      if (error) {
+        console.warn('Supabase updateCategory error:', error);
+        supabaseError = formatSupabaseError(error, 'categories');
+      } else {
+        isSupabaseSynced = true;
+      }
+    } catch (err: any) {
+      console.warn('Supabase updateCategory network error:', err);
+      supabaseError = err.message || 'Could not connect to Supabase';
+    }
+  }
+
+  return { data: updated, isSupabaseSynced, supabaseError };
 }
 
 export async function setCategoryColumns(id: string, patch: Record<string, any>): Promise<boolean> {
@@ -862,17 +887,15 @@ export async function permanentDeleteCategory(id: string): Promise<boolean> {
 
 export const fetchGroups = (includeDeleted = false) => listCategories({ includeDeleted });
 
-export async function saveGroup(group: Partial<DBCategory>): Promise<{ data: DBCategory; isSupabaseSynced: boolean }> {
+export async function saveGroup(group: Partial<DBCategory>): Promise<SaveResult<DBCategory>> {
   const categories = readStoredCategories();
   const exists = Boolean(group.id && categories.some((c) => c.id === group.id || c.slug === group.id));
 
   if (exists && group.id) {
-    const updated = await updateCategory(group.id, group);
-    return { data: updated, isSupabaseSynced: isSupabaseConfigured() };
+    return updateCategory(group.id, group);
   }
 
-  const created = await createCategory(group);
-  return { data: created, isSupabaseSynced: isSupabaseConfigured() };
+  return createCategory(group);
 }
 
 export const softDeleteGroup = softDeleteCategory;
@@ -950,7 +973,7 @@ export async function getItem(idOrSlug: string): Promise<DBItem | null> {
   return item || null;
 }
 
-export async function createItem(item: Partial<DBItem>): Promise<DBItem> {
+export async function createItem(item: Partial<DBItem>): Promise<SaveResult<DBItem>> {
   const name = item.name?.trim();
   if (!name) throw new Error('Product name is required.');
 
@@ -971,34 +994,45 @@ export async function createItem(item: Partial<DBItem>): Promise<DBItem> {
     updated_at: new Date().toISOString(),
   };
 
-  const client = getSupabaseClient();
-  if (client && isSupabaseConfigured()) {
-    const supabasePayload = {
-      id: newItem.id,
-      slug: newItem.slug,
-      name: newItem.name,
-      category_id: newItem.category_id,
-      price: newItem.price,
-      original_price: newItem.original_price ?? null,
-      description: newItem.description,
-      image: newItem.image,
-      active: newItem.active,
-      deleted_at: null,
-    };
-    const { error } = await client.from(TABLES.items).upsert([supabasePayload]);
-    if (error) {
-      console.error('Supabase createItem error:', error);
-      throw new Error(formatSupabaseError(error, 'items'));
-    }
-  }
-
+  // 1. ALWAYS write to local storage first
   items.unshift(newItem);
   writeStoredItems(items);
 
-  return newItem;
+  // 2. Sync to Supabase if configured
+  let isSupabaseSynced = false;
+  let supabaseError: string | null = null;
+  const client = getSupabaseClient();
+  if (client && isSupabaseConfigured()) {
+    try {
+      const supabasePayload = {
+        id: newItem.id,
+        slug: newItem.slug,
+        name: newItem.name,
+        category_id: newItem.category_id,
+        price: newItem.price,
+        original_price: newItem.original_price ?? null,
+        description: newItem.description,
+        image: newItem.image,
+        active: newItem.active,
+        deleted_at: null,
+      };
+      const { error } = await client.from(TABLES.items).upsert([supabasePayload]);
+      if (error) {
+        console.warn('Supabase createItem error:', error);
+        supabaseError = formatSupabaseError(error, 'items');
+      } else {
+        isSupabaseSynced = true;
+      }
+    } catch (err: any) {
+      console.warn('Supabase network error:', err);
+      supabaseError = err.message || 'Could not connect to Supabase';
+    }
+  }
+
+  return { data: newItem, isSupabaseSynced, supabaseError };
 }
 
-export async function updateItem(id: string, updates: Partial<DBItem>): Promise<DBItem> {
+export async function updateItem(id: string, updates: Partial<DBItem>): Promise<SaveResult<DBItem>> {
   const items = readStoredItems();
   const index = items.findIndex((i) => i.id === id || i.slug === id);
   if (index === -1 && !isSupabaseConfigured()) {
@@ -1014,36 +1048,45 @@ export async function updateItem(id: string, updates: Partial<DBItem>): Promise<
     updated_at: new Date().toISOString(),
   };
 
-  const client = getSupabaseClient();
-  if (client && isSupabaseConfigured()) {
-    const supabaseUpdates: Record<string, any> = {
-      updated_at: new Date().toISOString(),
-    };
-    if (updates.name !== undefined) supabaseUpdates.name = updates.name.trim();
-    if (updates.slug !== undefined) supabaseUpdates.slug = updates.slug;
-    if (updates.category_id !== undefined) supabaseUpdates.category_id = updates.category_id;
-    if (updates.price !== undefined) supabaseUpdates.price = Number(updates.price);
-    if (updates.original_price !== undefined)
-      supabaseUpdates.original_price = updates.original_price ? Number(updates.original_price) : null;
-    if (updates.description !== undefined) supabaseUpdates.description = updates.description;
-    if (updates.image !== undefined) supabaseUpdates.image = updates.image;
-    if (updates.active !== undefined) supabaseUpdates.active = updates.active;
-    if (updates.deleted_at !== undefined) supabaseUpdates.deleted_at = updates.deleted_at;
-
-    const targetId = current.id || id;
-    const { error } = await client.from(TABLES.items).update(supabaseUpdates).eq('id', targetId);
-    if (error) {
-      console.error('Supabase updateItem error:', error);
-      throw new Error(formatSupabaseError(error, 'items'));
-    }
-  }
-
   if (index !== -1) {
     items[index] = updated;
     writeStoredItems(items);
   }
 
-  return updated;
+  let isSupabaseSynced = false;
+  let supabaseError: string | null = null;
+  const client = getSupabaseClient();
+  if (client && isSupabaseConfigured()) {
+    try {
+      const supabaseUpdates: Record<string, any> = {
+        updated_at: new Date().toISOString(),
+      };
+      if (updates.name !== undefined) supabaseUpdates.name = updates.name.trim();
+      if (updates.slug !== undefined) supabaseUpdates.slug = updates.slug;
+      if (updates.category_id !== undefined) supabaseUpdates.category_id = updates.category_id;
+      if (updates.price !== undefined) supabaseUpdates.price = Number(updates.price);
+      if (updates.original_price !== undefined)
+        supabaseUpdates.original_price = updates.original_price ? Number(updates.original_price) : null;
+      if (updates.description !== undefined) supabaseUpdates.description = updates.description;
+      if (updates.image !== undefined) supabaseUpdates.image = updates.image;
+      if (updates.active !== undefined) supabaseUpdates.active = updates.active;
+      if (updates.deleted_at !== undefined) supabaseUpdates.deleted_at = updates.deleted_at;
+
+      const targetId = current.id || id;
+      const { error } = await client.from(TABLES.items).update(supabaseUpdates).eq('id', targetId);
+      if (error) {
+        console.warn('Supabase updateItem error:', error);
+        supabaseError = formatSupabaseError(error, 'items');
+      } else {
+        isSupabaseSynced = true;
+      }
+    } catch (err: any) {
+      console.warn('Supabase network error:', err);
+      supabaseError = err.message || 'Could not connect to Supabase';
+    }
+  }
+
+  return { data: updated, isSupabaseSynced, supabaseError };
 }
 
 export async function setItemColumns(id: string, patch: Record<string, any>): Promise<boolean> {
@@ -1106,17 +1149,15 @@ export const purgeItemPermanently = permanentDeleteItem;
 
 export const fetchItems = (includeDeleted = false) => listItems({ includeDeleted });
 
-export async function saveItem(item: Partial<DBItem>): Promise<{ data: DBItem; isSupabaseSynced: boolean }> {
+export async function saveItem(item: Partial<DBItem>): Promise<SaveResult<DBItem>> {
   const items = readStoredItems();
   const exists = Boolean(item.id && items.some((i) => i.id === item.id || i.slug === item.id));
 
   if (exists && item.id) {
-    const updated = await updateItem(item.id, item);
-    return { data: updated, isSupabaseSynced: isSupabaseConfigured() };
+    return updateItem(item.id, item);
   }
 
-  const created = await createItem(item);
-  return { data: created, isSupabaseSynced: isSupabaseConfigured() };
+  return createItem(item);
 }
 
 export async function syncAllToSupabase(): Promise<{ syncedCategories: number; syncedItems: number; error: string | null }> {
