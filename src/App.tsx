@@ -107,21 +107,15 @@ export default function App() {
 
   const isConfigured = isSupabaseConfigured();
 
-  // Admin Authentication State
-  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => {
-    try {
-      return sessionStorage.getItem('peace_admin_authenticated') === 'true';
-    } catch {
-      return false;
-    }
-  });
+  // Admin Authentication State (Pure Supabase Auth)
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(false);
 
   // Listen to Supabase Auth state changes
   useEffect(() => {
     let mounted = true;
     getAdminSession().then(({ session }) => {
-      if (mounted && session) {
-        setIsAdminAuthenticated(true);
+      if (mounted) {
+        setIsAdminAuthenticated(Boolean(session));
       }
     });
 

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { signInAdmin, signUpAdmin, isSupabaseConfigured } from '../lib/data';
-import { Lock, Sparkles, KeyRound, ArrowLeft, ShieldCheck, UserPlus, LogIn, CheckCircle2 } from 'lucide-react';
+import { signInAdmin, signUpAdmin, isSupabaseConfigured, getSupabaseUrl } from '../lib/data';
+import { Lock, ArrowLeft, ShieldCheck, UserPlus, LogIn, CheckCircle2, AlertCircle, Database, Settings } from 'lucide-react';
+import { SupabaseConfigModal } from './SupabaseConfigModal';
 
 interface AdminLoginProps {
   onLogin: () => void;
@@ -8,14 +9,16 @@ interface AdminLoginProps {
 }
 
 export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onBack }) => {
-  const [email, setEmail] = useState('admin@peacefurniture.com');
-  const [password, setPassword] = useState('admin123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
+  const [isDbModalOpen, setIsDbModalOpen] = useState(false);
 
-  const isSupabaseReady = isSupabaseConfigured();
+  const isConfigured = isSupabaseConfigured();
+  const currentSupabaseUrl = getSupabaseUrl();
 
   const grantAccess = () => {
     try {
@@ -32,15 +35,21 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onBack }) => {
     setError(null);
     setSuccessMessage(null);
 
+    if (!isConfigured) {
+      setError('Supabase is not configured yet. Please click "Configure Supabase" below to enter your Supabase Project URL and Anon Key.');
+      setLoading(false);
+      return;
+    }
+
     if (authMode === 'signup') {
       try {
         const { session, user, error: signUpError } = await signUpAdmin(email, password);
         if (signUpError) {
-          setError(signUpError.message || 'Failed to sign up in Supabase.');
+          setError(signUpError.message || 'Failed to create user in Supabase.');
         } else if (session) {
           grantAccess();
         } else if (user) {
-          setSuccessMessage('Registration successful! Please check your email to confirm or sign in now.');
+          setSuccessMessage('Registration submitted! If email confirmation is enabled on your Supabase project, check your inbox to confirm. Otherwise, you can sign in directly.');
           setAuthMode('signin');
         }
       } catch (err: any) {
@@ -51,7 +60,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onBack }) => {
       return;
     }
 
-    // Sign in flow using Supabase Auth Service (with local admin fallback)
+    // Direct Supabase Authentication
     try {
       const { session, error: authError } = await signInAdmin(email, password);
 
@@ -63,26 +72,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onBack }) => {
         grantAccess();
       }
     } catch (err: any) {
-      setError(err.message || 'Login failed. Please verify your credentials or use the 1-Click quick login.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleQuickLogin = async () => {
-    setEmail('admin@peacefurniture.com');
-    setPassword('admin123');
-    setLoading(true);
-    setError(null);
-    try {
-      const { session } = await signInAdmin('admin@peacefurniture.com', 'admin123');
-      if (session) {
-        grantAccess();
-      } else {
-        grantAccess();
-      }
-    } catch {
-      grantAccess();
+      setError(err.message || 'Supabase authentication failed. Please check your credentials.');
     } finally {
       setLoading(false);
     }
@@ -103,121 +93,99 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onBack }) => {
         )}
 
         <div className="flex flex-col items-center gap-3 text-center">
-          <div className="w-16 h-16 rounded-2xl bg-red-50 text-[#E11D2A] flex items-center justify-center shadow-inner">
+          <div className="w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shadow-inner">
             <Lock className="w-8 h-8" />
           </div>
           <div>
             <h2 className="text-2xl font-black text-gray-900 tracking-tight">Admin Portal</h2>
-            <p className="text-xs text-gray-500 mt-1">Peace Furniture House Management</p>
+            <p className="text-xs text-gray-500 mt-1">Supabase Authentication</p>
           </div>
 
-          {/* Authentication Service Status Badge */}
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold border">
-            {isSupabaseReady ? (
-              <span className="flex items-center gap-1.5 text-emerald-700 bg-emerald-50 border-emerald-200 px-2.5 py-0.5 rounded-full border">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Supabase Auth Service Connected</span>
-              </span>
-            ) : (
-              <span className="flex items-center gap-1.5 text-gray-600 bg-gray-50 border-gray-200 px-2.5 py-0.5 rounded-full border">
-                <ShieldCheck className="w-3.5 h-3.5 text-gray-500" />
-                <span>Local Admin Auth Mode</span>
-              </span>
-            )}
-          </div>
+          {/* Connection Status Badge */}
+          {isConfigured ? (
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Supabase Connected</span>
+              {currentSupabaseUrl && (
+                <span className="text-[10px] text-emerald-600 font-mono hidden xs:inline">
+                  ({currentSupabaseUrl.replace(/^https?:\/\//, '').split('.')[0]})
+                </span>
+              )}
+            </div>
+          ) : (
+            <div className="w-full bg-amber-50 border border-amber-200 rounded-2xl p-3.5 text-left text-xs space-y-2">
+              <div className="flex items-center gap-2 text-amber-800 font-bold">
+                <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                <span>Supabase Not Configured</span>
+              </div>
+              <p className="text-amber-700 text-[11px] leading-relaxed">
+                Connect your Supabase project URL & Anon Key to authenticate users against Supabase Auth.
+              </p>
+              <button
+                type="button"
+                onClick={() => setIsDbModalOpen(true)}
+                className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-colors cursor-pointer text-xs"
+              >
+                <Settings className="w-3.5 h-3.5" />
+                <span>Configure Supabase Credentials</span>
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* 1-Click Master Admin Quick Access Card */}
-        <div className="bg-gradient-to-br from-red-50 via-white to-gray-50 border border-red-200/80 rounded-2xl p-4 text-xs space-y-3">
-          <div className="flex items-center justify-between text-[#E11D2A] font-bold">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 flex-shrink-0" />
-              <span>Administrator Master Credentials</span>
-            </div>
-            <span className="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded-full">Default</span>
-          </div>
-          <div className="bg-white/80 p-2.5 rounded-xl border border-gray-200 font-mono text-[11px] space-y-1 text-gray-700">
-            <div>
-              <span className="font-semibold text-gray-500">Email:</span>{' '}
-              <strong className="text-gray-900">admin@peacefurniture.com</strong>
-            </div>
-            <div>
-              <span className="font-semibold text-gray-500">Password:</span>{' '}
-              <strong className="text-gray-900">admin123</strong>
-            </div>
-          </div>
+        {/* Tab switch for Sign In vs Sign Up */}
+        <div className="flex rounded-xl bg-gray-100 p-1 text-xs font-bold">
           <button
             type="button"
-            onClick={handleQuickLogin}
-            disabled={loading}
-            className="w-full bg-gray-900 hover:bg-black text-white py-2.5 px-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm disabled:opacity-50"
+            onClick={() => {
+              setAuthMode('signin');
+              setError(null);
+            }}
+            className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              authMode === 'signin' ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-500 hover:text-gray-900'
+            }`}
           >
-            <KeyRound className="w-3.5 h-3.5 text-amber-400" />
-            <span>1-Click Admin Sign In</span>
+            <LogIn className="w-3.5 h-3.5" />
+            <span>Sign In</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setAuthMode('signup');
+              setError(null);
+            }}
+            className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              authMode === 'signup' ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-500 hover:text-gray-900'
+            }`}
+          >
+            <UserPlus className="w-3.5 h-3.5" />
+            <span>Sign Up</span>
           </button>
         </div>
 
-        {/* Tab switch for Sign In vs Sign Up (if Supabase configured) */}
-        {isSupabaseReady && (
-          <div className="flex rounded-xl bg-gray-100 p-1 text-xs font-bold">
-            <button
-              type="button"
-              onClick={() => {
-                setAuthMode('signin');
-                setError(null);
-              }}
-              className={`flex-1 py-1.5 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                authMode === 'signin' ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-500 hover:text-gray-900'
-              }`}
-            >
-              <LogIn className="w-3.5 h-3.5" />
-              <span>Sign In</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setAuthMode('signup');
-                setError(null);
-              }}
-              className={`flex-1 py-1.5 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                authMode === 'signup' ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-500 hover:text-gray-900'
-              }`}
-            >
-              <UserPlus className="w-3.5 h-3.5" />
-              <span>Create Supabase Admin</span>
-            </button>
-          </div>
-        )}
-
         {successMessage && (
-          <div className="text-xs text-emerald-800 bg-emerald-50 p-3 rounded-xl flex items-center gap-2 border border-emerald-200">
+          <div className="text-xs text-emerald-800 bg-emerald-50 p-3 rounded-xl flex items-center gap-2 border border-emerald-200 leading-relaxed">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
             <span>{successMessage}</span>
           </div>
         )}
 
         {error && (
-          <div className="text-xs text-red-600 bg-red-50 p-3 rounded-xl leading-relaxed whitespace-pre-line border border-red-200">
-            {error}
+          <div className="text-xs text-red-600 bg-red-50 p-3 rounded-xl leading-relaxed whitespace-pre-line border border-red-200 flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+            <span>{error}</span>
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="relative flex items-center justify-center">
-            <div className="border-t border-gray-200 w-full" />
-            <span className="bg-white px-3 text-[10px] uppercase font-bold text-gray-400 absolute">
-              {authMode === 'signin' ? 'or sign in with credentials' : 'register new admin in supabase'}
-            </span>
-          </div>
-
           <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Email / Username</label>
+            <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Supabase Email</label>
             <input
-              type="text"
+              type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#E11D2A] focus:bg-white transition-all"
-              placeholder="admin@peacefurniture.com"
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#E11D2A] focus:bg-white transition-all text-gray-900 placeholder-gray-400"
+              placeholder="user@example.com"
               required
             />
           </div>
@@ -227,7 +195,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onBack }) => {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#E11D2A] focus:bg-white transition-all"
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#E11D2A] focus:bg-white transition-all text-gray-900 placeholder-gray-400"
               placeholder="••••••••"
               required
             />
@@ -239,21 +207,44 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onBack }) => {
             className="w-full bg-[#E11D2A] text-white py-3 rounded-xl font-bold hover:bg-[#C51322] disabled:opacity-50 transition-colors cursor-pointer shadow-md shadow-red-500/20 flex items-center justify-center gap-2"
           >
             {loading ? (
-              <span>Authenticating...</span>
+              <span>Authenticating with Supabase...</span>
             ) : authMode === 'signup' ? (
               <>
                 <UserPlus className="w-4 h-4" />
-                <span>Create Admin Account</span>
+                <span>Create Supabase Account</span>
               </>
             ) : (
               <>
                 <LogIn className="w-4 h-4" />
-                <span>Sign In to Admin</span>
+                <span>Sign In with Supabase</span>
               </>
             )}
           </button>
         </form>
+
+        {/* Footer info & Database Configuration link */}
+        <div className="pt-2 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
+          <span>Protected with Supabase Auth</span>
+          <button
+            type="button"
+            onClick={() => setIsDbModalOpen(true)}
+            className="text-gray-600 hover:text-gray-900 font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+          >
+            <Database className="w-3 h-3 text-emerald-600" />
+            <span>Connection Settings</span>
+          </button>
+        </div>
       </div>
+
+      {/* Supabase Connection Config Modal */}
+      <SupabaseConfigModal
+        isOpen={isDbModalOpen}
+        onClose={() => setIsDbModalOpen(false)}
+        onSaved={() => {
+          setIsDbModalOpen(false);
+          setError(null);
+        }}
+      />
     </div>
   );
 };

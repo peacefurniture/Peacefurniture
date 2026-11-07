@@ -295,7 +295,7 @@ export async function resolveGroupUuid(ref: string | null | undefined): Promise<
 }
 
 // ============================================================================
-// AUTHENTICATION (SUPABASE AUTH SERVICE + LOCAL ADMIN FALLBACK)
+// AUTHENTICATION (PURE SUPABASE AUTHENTICATION SERVICE)
 // ============================================================================
 
 export async function signInAdmin(
@@ -305,82 +305,40 @@ export async function signInAdmin(
   const trimmedEmail = email.trim();
   const client = getSupabaseClient();
 
-  // 1. If Supabase is configured, attempt authentication with Supabase Auth service
-  if (client) {
-    try {
-      const { data, error } = await client.auth.signInWithPassword({
-        email: trimmedEmail,
-        password,
-      });
-
-      if (!error && data?.session) {
-        try {
-          sessionStorage.setItem('peace_admin_authenticated', 'true');
-          sessionStorage.setItem('peace_admin_email', data.session.user?.email || trimmedEmail);
-        } catch {
-          // ignore
-        }
-        return { session: data.session, user: data.user, error: null };
-      }
-
-      // If Supabase returned an error, check if the user is using the master AI Studio admin credentials
-      const isMasterAdmin =
-        (trimmedEmail.toLowerCase() === 'admin@peacefurniture.com' ||
-          trimmedEmail.toLowerCase() === 'admin' ||
-          trimmedEmail.toLowerCase() === 'peacefurniturehouse26@gmail.com') &&
-        (password === 'admin123' || password === 'admin');
-
-      if (isMasterAdmin) {
-        try {
-          sessionStorage.setItem('peace_admin_authenticated', 'true');
-          sessionStorage.setItem('peace_admin_email', trimmedEmail);
-        } catch {
-          // ignore
-        }
-        return {
-          session: { user: { email: trimmedEmail, id: 'admin-master' } },
-          user: { email: trimmedEmail, id: 'admin-master' },
-          error: null,
-        };
-      }
-
-      return { session: null, user: null, error: error || new Error('Authentication failed') };
-    } catch (err: any) {
-      console.warn('Supabase Auth signIn error:', err);
-      // Fall through to master admin check below
-    }
-  }
-
-  // 2. Local Fallback authentication when Supabase is not configured or in offline mode
-  const isValidAdmin =
-    (trimmedEmail.toLowerCase() === 'admin@peacefurniture.com' ||
-      trimmedEmail.toLowerCase() === 'admin' ||
-      trimmedEmail.toLowerCase() === 'peacefurniturehouse26@gmail.com') &&
-    (password === 'admin123' || password === 'admin');
-
-  if (isValidAdmin) {
-    try {
-      sessionStorage.setItem('peace_admin_authenticated', 'true');
-      sessionStorage.setItem('peace_admin_email', trimmedEmail);
-    } catch {
-      // ignore
-    }
+  if (!client || !isSupabaseConfigured()) {
     return {
-      session: { user: { email: trimmedEmail, id: 'admin-local' } },
-      user: { email: trimmedEmail, id: 'admin-local' },
-      error: null,
+      session: null,
+      user: null,
+      error: new Error(
+        'Supabase is not configured yet. Please configure your Supabase Project URL and Anon Key to log in.'
+      ),
     };
   }
 
-  return {
-    session: null,
-    user: null,
-    error: new Error(
-      isSupabaseConfigured()
-        ? 'Invalid email or password in Supabase Auth.'
-        : 'Invalid credentials. Use admin@peacefurniture.com / admin123 or connect Supabase.'
-    ),
-  };
+  try {
+    const { data, error } = await client.auth.signInWithPassword({
+      email: trimmedEmail,
+      password,
+    });
+
+    if (error) {
+      return { session: null, user: null, error };
+    }
+
+    if (data?.session) {
+      try {
+        sessionStorage.setItem('peace_admin_authenticated', 'true');
+        sessionStorage.setItem('peace_admin_email', data.session.user?.email || trimmedEmail);
+      } catch {
+        // ignore
+      }
+      return { session: data.session, user: data.user, error: null };
+    }
+
+    return { session: null, user: null, error: new Error('Failed to retrieve Supabase session.') };
+  } catch (err: any) {
+    return { session: null, user: null, error: err };
+  }
 }
 
 export async function signUpAdmin(
@@ -388,11 +346,11 @@ export async function signUpAdmin(
   password: string
 ): Promise<{ session: any | null; user?: any | null; error: Error | null }> {
   const client = getSupabaseClient();
-  if (!client) {
+  if (!client || !isSupabaseConfigured()) {
     return {
       session: null,
       user: null,
-      error: new Error('Supabase is not configured. Please add your Supabase URL & Anon Key first.'),
+      error: new Error('Supabase is not configured yet. Please configure your Supabase Project URL and Anon Key first.'),
     };
   }
 
@@ -444,7 +402,7 @@ export async function signOutAdmin(): Promise<{ error: Error | null }> {
 
 export async function getAdminSession(): Promise<{ session: any | null; error: Error | null }> {
   const client = getSupabaseClient();
-  if (client) {
+  if (client && isSupabaseConfigured()) {
     try {
       const { data, error } = await client.auth.getSession();
       if (!error && data?.session) {
@@ -455,22 +413,12 @@ export async function getAdminSession(): Promise<{ session: any | null; error: E
     }
   }
 
-  try {
-    const isAuthed = sessionStorage.getItem('peace_admin_authenticated') === 'true';
-    if (isAuthed) {
-      const email = sessionStorage.getItem('peace_admin_email') || 'admin@peacefurniture.com';
-      return { session: { user: { email, id: 'admin-session' } }, error: null };
-    }
-  } catch {
-    // ignore
-  }
-
   return { session: null, error: null };
 }
 
 export function onAuthChange(callback: (event: string, session: any | null) => void) {
   const client = getSupabaseClient();
-  if (client) {
+  if (client && isSupabaseConfigured()) {
     try {
       const {
         data: { subscription },
