@@ -40,8 +40,8 @@ export const Hero: React.FC<HeroProps> = ({
             </p>
 
             {/* Title */}
-            <h1 className="text-2xl sm:text-4xl md:text-5xl font-black text-white tracking-tight leading-[1.15] mb-2 sm:mb-3">
-              Peace Furniture <span className="text-[#E11D2A]">House</span>
+            <h1 className="text-2xl sm:text-4xl md:text-5xl font-black tracking-tight leading-[1.15] mb-2 sm:mb-3">
+              <span className="text-white">Peace</span> <span className="text-[#E11D2A]">Furniture House</span>
             </h1>
 
             {/* Subtitle */}
