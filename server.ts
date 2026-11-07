@@ -123,7 +123,7 @@ const DEFAULT_CATEGORIES = [
   },
 ];
 
-const DEFAULT_PRODUCTS = [];
+const DEFAULT_PRODUCTS: any[] = [];
 
 // Persistence Setup
 const DATA_DIR = path.join(__dirname, 'data_store');

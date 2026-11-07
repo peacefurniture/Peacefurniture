@@ -39,9 +39,13 @@ import {
   isDefaultOtherCategory,
   DEFAULT_OTHER_CATEGORY_IMAGE,
   sortCategoriesWithOtherLast,
+  signOutAdmin,
+  getAdminSession,
+  onAuthChange,
 } from './lib/data';
 import { NICHE_CONFIG } from './config/niche';
 
+import { AdminLogin } from './components/AdminLogin';
 import { SupabaseConfigModal } from './components/SupabaseConfigModal';
 
 export default function App() {
@@ -102,6 +106,36 @@ export default function App() {
   }, []);
 
   const isConfigured = isSupabaseConfigured();
+
+  // Admin Authentication State
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem('peace_admin_authenticated') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  // Listen to Supabase Auth state changes
+  useEffect(() => {
+    let mounted = true;
+    getAdminSession().then(({ session }) => {
+      if (mounted && session) {
+        setIsAdminAuthenticated(true);
+      }
+    });
+
+    const { unsubscribe } = onAuthChange((_event, session) => {
+      if (mounted) {
+        setIsAdminAuthenticated(Boolean(session));
+      }
+    });
+
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
+  }, []);
 
   // Toast Notification state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -550,6 +584,16 @@ export default function App() {
     });
   };
 
+  const handleAdminSignOut = async () => {
+    try {
+      await signOutAdmin();
+    } catch (err) {
+      console.warn('Sign out error:', err);
+    }
+    setIsAdminAuthenticated(false);
+    showToast('Signed out of Admin Portal');
+  };
+
   return (
     <div className="min-h-screen bg-[#FAFAFA] text-gray-900 flex flex-col font-['Plus_Jakarta_Sans',sans-serif]">
       {/* Toast Notification Alert */}
@@ -560,29 +604,40 @@ export default function App() {
         </div>
       )}
 
-      {/* Direct Rendering: Admin View vs Store View (Authentication bypassed) */}
+      {/* Admin Portal Authentication Check: Login Page vs Admin Dashboard */}
       {currentView === 'admin' ? (
-        <AdminView
-          products={products}
-          categories={categories}
-          onAddProduct={handleOpenAddProduct}
-          onEditProduct={handleOpenEditProduct}
-          onDeleteProduct={handleDeleteProduct}
-          onToggleActive={handleToggleActiveProduct}
-          onAddCategory={handleOpenAddCategory}
-          onEditCategory={handleOpenEditCategory}
-          onDeleteCategory={handleDeleteCategory}
-          onToggleActiveCategory={handleToggleActiveCategory}
-          onRestoreCategory={handleRestoreCategory}
-          onPurgeCategory={handlePurgeCategory}
-          onRestoreProduct={handleRestoreProduct}
-          onPurgeProduct={handlePurgeProduct}
-          onStoreToDatabase={loadData}
-          isSyncingToDb={false}
-          lastSyncedAt={null}
-          onGoToStore={() => setCurrentView('home')}
-          onOpenDatabaseSettings={() => setIsDbModalOpen(true)}
-        />
+        !isAdminAuthenticated ? (
+          <AdminLogin
+            onLogin={() => {
+              setIsAdminAuthenticated(true);
+              showToast('✅ Signed in to Admin Portal');
+            }}
+            onBack={() => setCurrentView('home')}
+          />
+        ) : (
+          <AdminView
+            products={products}
+            categories={categories}
+            onAddProduct={handleOpenAddProduct}
+            onEditProduct={handleOpenEditProduct}
+            onDeleteProduct={handleDeleteProduct}
+            onToggleActive={handleToggleActiveProduct}
+            onAddCategory={handleOpenAddCategory}
+            onEditCategory={handleOpenEditCategory}
+            onDeleteCategory={handleDeleteCategory}
+            onToggleActiveCategory={handleToggleActiveCategory}
+            onRestoreCategory={handleRestoreCategory}
+            onPurgeCategory={handlePurgeCategory}
+            onRestoreProduct={handleRestoreProduct}
+            onPurgeProduct={handlePurgeProduct}
+            onStoreToDatabase={loadData}
+            isSyncingToDb={false}
+            lastSyncedAt={null}
+            onGoToStore={() => setCurrentView('home')}
+            onSignOut={handleAdminSignOut}
+            onOpenDatabaseSettings={() => setIsDbModalOpen(true)}
+          />
+        )
       ) : (
         <>
           <Header

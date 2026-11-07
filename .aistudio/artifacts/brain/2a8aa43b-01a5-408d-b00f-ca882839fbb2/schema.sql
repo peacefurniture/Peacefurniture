@@ -1,30 +1,64 @@
--- SQL Script to set up database tables in Supabase
+-- ============================================================================
+-- PEACE FURNITURE HOUSE: SUPABASE DATABASE & STORAGE SCHEMA
+-- Run this complete script in your Supabase SQL Editor (SQL Editor -> New Query)
+-- ============================================================================
 
--- Create category table
-CREATE TABLE IF NOT EXISTS category (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+-- 1. Create 'categories' table
+CREATE TABLE IF NOT EXISTS public.categories (
+    id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    description TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+    slug TEXT NOT NULL,
+    image TEXT DEFAULT '',
+    active BOOLEAN DEFAULT true,
+    deleted_at TIMESTAMPTZ DEFAULT NULL,
+    created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
 
--- Create product table
-CREATE TABLE IF NOT EXISTS product (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    category_id UUID REFERENCES category(id) ON DELETE CASCADE,
+-- 2. Create 'items' (products) table
+CREATE TABLE IF NOT EXISTS public.items (
+    id TEXT PRIMARY KEY,
+    slug TEXT NOT NULL,
     name TEXT NOT NULL,
-    description TEXT,
-    price DECIMAL(10, 2),
-    image_url TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+    category_id TEXT DEFAULT 'other',
+    price NUMERIC DEFAULT 0,
+    original_price NUMERIC,
+    description TEXT DEFAULT '',
+    image TEXT DEFAULT '',
+    active BOOLEAN DEFAULT true,
+    deleted_at TIMESTAMPTZ DEFAULT NULL,
+    created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
 
--- Enable Row Level Security (RLS)
-ALTER TABLE category ENABLE ROW LEVEL SECURITY;
-ALTER TABLE product ENABLE ROW LEVEL SECURITY;
+-- 3. Enable Row Level Security (RLS)
+ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.items ENABLE ROW LEVEL SECURITY;
 
--- Note: You will need to add RLS policies here to allow your application to read/write data.
--- Example:
--- CREATE POLICY "Allow public read access" ON category FOR SELECT USING (true);
--- CREATE POLICY "Allow public read access" ON product FOR SELECT USING (true);
+-- 4. Create RLS Policies to allow reading and writing with anon key
+DROP POLICY IF EXISTS "Allow public all access on categories" ON public.categories;
+CREATE POLICY "Allow public all access on categories" 
+ON public.categories FOR ALL 
+TO public, anon, authenticated 
+USING (true) 
+WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow public all access on items" ON public.items;
+CREATE POLICY "Allow public all access on items" 
+ON public.items FOR ALL 
+TO public, anon, authenticated 
+USING (true) 
+WITH CHECK (true);
+
+-- 5. Create Storage Bucket for Furniture Images (if not exists)
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('Images', 'Images', true)
+ON CONFLICT (id) DO UPDATE SET public = true;
+
+-- Storage RLS policies to allow image uploads
+DROP POLICY IF EXISTS "Allow public all on Images storage bucket" ON storage.objects;
+CREATE POLICY "Allow public all on Images storage bucket"
+ON storage.objects FOR ALL
+TO public, anon, authenticated
+USING (bucket_id = 'Images')
+WITH CHECK (bucket_id = 'Images');
