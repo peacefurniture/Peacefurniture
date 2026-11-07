@@ -126,11 +126,11 @@ export const NavDrawer: React.FC<NavDrawerProps> = ({
           <div className="space-y-2 pt-2 border-t border-gray-800/80 text-xs text-gray-400 px-3">
             <div className="flex items-center gap-2">
               <MapPin className="w-3.5 h-3.5 text-gray-500" />
-              <span>Flagship Experience Centers in 12 Cities</span>
+              <span>Bawa Builders, G.K. Smart City ,BC Road -574 219</span>
             </div>
             <div className="flex items-center gap-2">
               <Phone className="w-3.5 h-3.5 text-gray-500" />
-              <span>Toll Free Support: 1800-419-PEACE</span>
+              <span>Support: +91 90601 02626</span>
             </div>
           </div>
         </div>

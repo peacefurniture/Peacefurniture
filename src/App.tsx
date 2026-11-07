@@ -631,6 +631,7 @@ export default function App() {
               setSelectedCategory(cat);
               setCurrentView('home');
             }}
+            categories={activeCategories}
           />
         </>
       )}
