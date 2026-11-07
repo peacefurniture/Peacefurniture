@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { signInAdmin, signUpAdmin, isSupabaseConfigured, getSupabaseUrl } from '../lib/data';
-import { Lock, ArrowLeft, ShieldCheck, UserPlus, LogIn, CheckCircle2, AlertCircle, Database, Settings } from 'lucide-react';
+import { signInAdmin, isSupabaseConfigured, getSupabaseUrl } from '../lib/data';
+import { Lock, ArrowLeft, ShieldCheck, LogIn, AlertCircle, Database, Settings } from 'lucide-react';
 import { SupabaseConfigModal } from './SupabaseConfigModal';
 
 interface AdminLoginProps {
@@ -13,8 +13,6 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onBack }) => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [isDbModalOpen, setIsDbModalOpen] = useState(false);
 
   const isConfigured = isSupabaseConfigured();
@@ -33,30 +31,10 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onBack }) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    setSuccessMessage(null);
 
     if (!isConfigured) {
       setError('Supabase is not configured yet. Please click "Configure Supabase" below to enter your Supabase Project URL and Anon Key.');
       setLoading(false);
-      return;
-    }
-
-    if (authMode === 'signup') {
-      try {
-        const { session, user, error: signUpError } = await signUpAdmin(email, password);
-        if (signUpError) {
-          setError(signUpError.message || 'Failed to create user in Supabase.');
-        } else if (session) {
-          grantAccess();
-        } else if (user) {
-          setSuccessMessage('Registration submitted! If email confirmation is enabled on your Supabase project, check your inbox to confirm. Otherwise, you can sign in directly.');
-          setAuthMode('signin');
-        }
-      } catch (err: any) {
-        setError(err.message || 'An error occurred during registration.');
-      } finally {
-        setLoading(false);
-      }
       return;
     }
 
@@ -98,7 +76,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onBack }) => {
           </div>
           <div>
             <h2 className="text-2xl font-black text-gray-900 tracking-tight">Admin Portal</h2>
-            <p className="text-xs text-gray-500 mt-1">Supabase Authentication</p>
+            <p className="text-xs text-gray-500 mt-1">Supabase Authentication Sign In</p>
           </div>
 
           {/* Connection Status Badge */}
@@ -132,43 +110,6 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onBack }) => {
             </div>
           )}
         </div>
-
-        {/* Tab switch for Sign In vs Sign Up */}
-        <div className="flex rounded-xl bg-gray-100 p-1 text-xs font-bold">
-          <button
-            type="button"
-            onClick={() => {
-              setAuthMode('signin');
-              setError(null);
-            }}
-            className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-              authMode === 'signin' ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-500 hover:text-gray-900'
-            }`}
-          >
-            <LogIn className="w-3.5 h-3.5" />
-            <span>Sign In</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setAuthMode('signup');
-              setError(null);
-            }}
-            className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-              authMode === 'signup' ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-500 hover:text-gray-900'
-            }`}
-          >
-            <UserPlus className="w-3.5 h-3.5" />
-            <span>Sign Up</span>
-          </button>
-        </div>
-
-        {successMessage && (
-          <div className="text-xs text-emerald-800 bg-emerald-50 p-3 rounded-xl flex items-center gap-2 border border-emerald-200 leading-relaxed">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-            <span>{successMessage}</span>
-          </div>
-        )}
 
         {error && (
           <div className="text-xs text-red-600 bg-red-50 p-3 rounded-xl leading-relaxed whitespace-pre-line border border-red-200 flex items-start gap-2">
@@ -208,11 +149,6 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onBack }) => {
           >
             {loading ? (
               <span>Authenticating with Supabase...</span>
-            ) : authMode === 'signup' ? (
-              <>
-                <UserPlus className="w-4 h-4" />
-                <span>Create Supabase Account</span>
-              </>
             ) : (
               <>
                 <LogIn className="w-4 h-4" />

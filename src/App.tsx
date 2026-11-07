@@ -42,6 +42,7 @@ import {
   signOutAdmin,
   getAdminSession,
   onAuthChange,
+  syncAllToSupabase,
 } from './lib/data';
 import { NICHE_CONFIG } from './config/niche';
 
@@ -53,6 +54,8 @@ export default function App() {
   const [items, setItems] = useState<DBItem[]>([]);
   const [groups, setGroups] = useState<DBGroup[]>([]);
   const [isDbModalOpen, setIsDbModalOpen] = useState(false);
+  const [isSyncingToDb, setIsSyncingToDb] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   
   // Temporary mapping for compatibility
   const products = useMemo(() => items.map(mapDBItemToFurnitureItem), [items]);
@@ -306,13 +309,36 @@ export default function App() {
 
   // ============ ADMIN ACTIONS (DATA LAYER CONNECTED) ============
 
+  // Full Catalogue Sync to Supabase
+  const handleStoreToDatabase = async () => {
+    setIsSyncingToDb(true);
+    try {
+      if (isSupabaseConfigured()) {
+        const res = await syncAllToSupabase();
+        if (res.error) {
+          showToast(`❌ Sync Error: ${res.error}`);
+        } else {
+          setLastSyncedAt(new Date().toLocaleTimeString());
+          showToast(`✅ Synced ${res.syncedCategories} categories & ${res.syncedItems} products to Supabase!`);
+        }
+      } else {
+        showToast('ℹ️ Local catalogue refreshed. Configure Supabase in Database settings to sync to cloud.');
+      }
+      await loadData();
+    } catch (err: any) {
+      showToast(`❌ Error: ${err.message}`);
+    } finally {
+      setIsSyncingToDb(false);
+    }
+  };
+
   // Add or Edit Product
   const handleSaveProduct = async (product: FurnitureItem) => {
     const isEdit = Boolean(editingAdminProduct);
     const resolvedSlug = product.slug || generateUniqueSlug(product.name, products, product.id);
     const targetCategoryId = product.category || (product as any).group_id || 'other';
     try {
-      await saveItem({
+      const res = await saveItem({
         id: product.id,
         name: product.name,
         slug: resolvedSlug,
@@ -324,12 +350,17 @@ export default function App() {
       });
 
       await loadData();
-      showToast(`✅ ${isEdit ? 'Updated' : 'Added'} "${product.name}" in catalogue!`);
+      showToast(
+        res.isSupabaseSynced
+          ? `✅ ${isEdit ? 'Updated' : 'Created'} "${product.name}" in Supabase!`
+          : `✅ ${isEdit ? 'Updated' : 'Added'} "${product.name}" in catalogue!`
+      );
+      setEditingAdminProduct(null);
+      setIsAdminProductModalOpen(false);
     } catch (err: any) {
-      showToast(`Error: ${err.message}`);
+      console.error('Save product error:', err);
+      showToast(`❌ ${err.message || 'Failed to save product'}`);
     }
-
-    setEditingAdminProduct(null);
   };
 
   // Soft Delete Product
@@ -430,7 +461,7 @@ export default function App() {
     const isEdit = Boolean(editingAdminCategory);
     const resolvedSlug = category.slug || generateUniqueSlug(category.name, categories, category.id);
     try {
-      await saveGroup({
+      const res = await saveGroup({
         id: category.id,
         name: category.name,
         slug: resolvedSlug,
@@ -439,12 +470,17 @@ export default function App() {
       });
 
       await loadData();
-      showToast(`✅ ${isEdit ? 'Updated' : 'Added'} "${category.name}" in catalogue!`);
+      showToast(
+        res.isSupabaseSynced
+          ? `✅ ${isEdit ? 'Updated' : 'Created'} "${category.name}" in Supabase!`
+          : `✅ ${isEdit ? 'Updated' : 'Added'} "${category.name}" in catalogue!`
+      );
+      setEditingAdminCategory(null);
+      setIsAdminCategoryModalOpen(false);
     } catch (err: any) {
-      showToast(`Error: ${err.message}`);
+      console.error('Save category error:', err);
+      showToast(`❌ ${err.message || 'Failed to save category'}`);
     }
-
-    setEditingAdminCategory(null);
   };
 
   // Soft Delete Category (Moves to Trash)
@@ -624,9 +660,9 @@ export default function App() {
             onPurgeCategory={handlePurgeCategory}
             onRestoreProduct={handleRestoreProduct}
             onPurgeProduct={handlePurgeProduct}
-            onStoreToDatabase={loadData}
-            isSyncingToDb={false}
-            lastSyncedAt={null}
+            onStoreToDatabase={handleStoreToDatabase}
+            isSyncingToDb={isSyncingToDb}
+            lastSyncedAt={lastSyncedAt}
             onGoToStore={() => setCurrentView('home')}
             onSignOut={handleAdminSignOut}
             onOpenDatabaseSettings={() => setIsDbModalOpen(true)}

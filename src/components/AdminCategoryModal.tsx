@@ -23,6 +23,8 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
   const [uploadedImageName, setUploadedImageName] = useState<string>('');
   const [imageError, setImageError] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string>('');
 
   const [formData, setFormData] = useState<Partial<Category>>({
     name: '',
@@ -35,6 +37,7 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
       setFormData({ ...initialCategory, isActive: initialCategory.isActive ?? true });
       setUploadedImageName(initialCategory.name ? `${initialCategory.name} Photo` : 'Existing Category Image');
       setImageError('');
+      setSubmitError('');
     } else {
       setFormData({
         name: '',
@@ -43,6 +46,7 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
       });
       setUploadedImageName('');
       setImageError('');
+      setSubmitError('');
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -97,7 +101,7 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
 
   const isDefaultCategory = isDefaultOtherCategory(initialCategory);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isDefaultCategory) {
       setImageError("The default 'Other' category is permanent and cannot be edited.");
@@ -141,8 +145,16 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
       isActive: formData.isActive ?? true,
     };
 
-    onSave(completeCategory);
-    onClose();
+    setIsSubmitting(true);
+    setSubmitError('');
+    try {
+      await onSave(completeCategory);
+    } catch (err: any) {
+      console.error('Category Save Error:', err);
+      setSubmitError(err.message || 'Failed to save category');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -329,9 +341,16 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
             )}
 
             {imageError && (
-              <div className="flex items-center gap-1 text-xs text-red-600 font-semibold mt-1">
-                <AlertCircle className="w-3.5 h-3.5" />
+              <div className="flex items-center gap-1.5 text-xs text-red-600 font-semibold mt-1">
+                <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
                 <span>{imageError}</span>
+              </div>
+            )}
+
+            {submitError && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-xs text-red-700 font-medium">
+                <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
+                <span>{submitError}</span>
               </div>
             )}
           </div>
@@ -341,18 +360,29 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
         <div className="p-4 border-t border-gray-100 bg-white sticky bottom-0 z-10 flex items-center justify-end gap-2.5 flex-shrink-0">
           <button
             type="button"
+            disabled={isSubmitting}
             onClick={onClose}
-            className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl border border-gray-300 text-gray-700 text-xs font-semibold hover:bg-gray-50 cursor-pointer text-center"
+            className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl border border-gray-300 text-gray-700 text-xs font-semibold hover:bg-gray-50 cursor-pointer text-center disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             type="button"
+            disabled={isSubmitting || isUploading}
             onClick={handleSubmit}
-            className="flex-1 sm:flex-initial bg-[#E11D2A] hover:bg-[#C51322] text-white px-5 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-red-500/20"
+            className="flex-1 sm:flex-initial bg-[#E11D2A] hover:bg-[#C51322] text-white px-5 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-red-500/20 disabled:opacity-50"
           >
-            <Check className="w-4 h-4" />
-            <span>{initialCategory ? 'Save Changes' : 'Add Category'}</span>
+            {isSubmitting ? (
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                <span>Saving to Supabase...</span>
+              </>
+            ) : (
+              <>
+                <Check className="w-4 h-4" />
+                <span>{initialCategory ? 'Save Changes' : 'Add Category'}</span>
+              </>
+            )}
           </button>
         </div>
       </div>

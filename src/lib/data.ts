@@ -564,6 +564,26 @@ export async function ensureDefaultOtherCategory(): Promise<DBCategory> {
   return newOther;
 }
 
+export function formatSupabaseError(error: any, table: string): string {
+  if (!error) return 'Unknown database error';
+  const msg = error.message || '';
+  if (error.code === '42P01' || msg.includes('does not exist') || error.code === 'PGRST205') {
+    return `Table 'public.${table}' does not exist in your Supabase project. Please execute schema.sql in your Supabase SQL Editor.`;
+  }
+  if (
+    error.code === '42501' ||
+    msg.includes('row-level security') ||
+    msg.includes('RLS') ||
+    msg.includes('violates row-level security policy')
+  ) {
+    return `Supabase Row-Level Security (RLS) blocked the operation on '${table}'. Please execute the RLS policies in schema.sql.`;
+  }
+  if (msg.includes('item_count') || error.code === 'PGRST204') {
+    return `Supabase schema error: column 'item_count' does not exist in table 'public.categories'.`;
+  }
+  return msg || `Supabase error (${error.code || 'UNKNOWN'})`;
+}
+
 export interface ListCategoriesOptions {
   includeDeleted?: boolean;
   onlyDeleted?: boolean;
@@ -575,7 +595,7 @@ export async function listCategories(options: ListCategoriesOptions = {}): Promi
 
   // Check Supabase Cloud first if available
   const client = getSupabaseClient();
-  if (client) {
+  if (client && isSupabaseConfigured()) {
     try {
       let query = client.from(TABLES.categories).select('*');
       if (options.onlyDeleted) {
@@ -588,13 +608,35 @@ export async function listCategories(options: ListCategoriesOptions = {}): Promi
       }
 
       const { data, error } = await query;
-      if (!error && Array.isArray(data) && data.length > 0) {
-        // Sync local cache
-        const mapped = data.map((cat: DBCategory) => ({
-          ...cat,
-          image: cat.image || (isDefaultOtherCategory(cat) ? DEFAULT_OTHER_CATEGORY_IMAGE : ''),
-        }));
-        return sortCategoriesWithOtherLast(mapped);
+      if (!error && Array.isArray(data)) {
+        // If Supabase returned categories
+        const items = readStoredItems().filter((item) => !item.deleted_at);
+        const mapped = data.map((cat: any) => {
+          const isOther = isDefaultOtherCategory(cat);
+          const count = items.filter((item) => {
+            if (item.category_id === cat.id || item.category_id === cat.slug) return true;
+            if (isOther && (!item.category_id || item.category_id === 'other')) return true;
+            return false;
+          }).length;
+          return {
+            id: cat.id,
+            name: cat.name,
+            slug: cat.slug,
+            active: cat.active !== false,
+            image: cat.image || (isOther ? DEFAULT_OTHER_CATEGORY_IMAGE : ''),
+            item_count: count,
+            deleted_at: cat.deleted_at || null,
+            created_at: cat.created_at,
+            updated_at: cat.updated_at,
+          };
+        });
+
+        if (mapped.length > 0) {
+          writeStoredCategories(mapped);
+          return sortCategoriesWithOtherLast(mapped);
+        }
+      } else if (error) {
+        console.warn('Supabase fetch categories error:', error);
       }
     } catch (err) {
       console.warn('Supabase fetch failed, falling back to local storage database:', err);
@@ -654,8 +696,9 @@ export async function createCategory(category: Partial<DBCategory>): Promise<DBC
 
   const categories = readStoredCategories();
   const slug = typedSlug || generateUniqueSlug(name, categories);
+  const newCatId = category.id || `cat-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const newCat: DBCategory = {
-    id: category.id || `cat-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    id: newCatId,
     name,
     slug,
     active: category.active ?? true,
@@ -666,17 +709,35 @@ export async function createCategory(category: Partial<DBCategory>): Promise<DBC
     updated_at: new Date().toISOString(),
   };
 
-  categories.push(newCat);
-  writeStoredCategories(categories);
-
   const client = getSupabaseClient();
-  if (client) {
-    try {
-      await client.from(TABLES.categories).upsert([newCat]);
-    } catch (err) {
-      console.warn('Failed to push category to Supabase:', err);
+  if (client && isSupabaseConfigured()) {
+    // CRITICAL: Clean payload for Supabase - ONLY columns that exist in public.categories!
+    // Supabase table schema: id, name, slug, image, active, deleted_at, created_at, updated_at
+    // 'item_count' MUST be omitted because PostgREST rejects any payload containing non-existent columns.
+    const supabasePayload = {
+      id: newCat.id,
+      name: newCat.name,
+      slug: newCat.slug,
+      image: newCat.image || '',
+      active: newCat.active,
+      deleted_at: null,
+    };
+
+    const { error } = await client.from(TABLES.categories).upsert([supabasePayload]);
+    if (error) {
+      console.error('Supabase createCategory error:', error);
+      throw new Error(formatSupabaseError(error, 'categories'));
     }
   }
+
+  // Update local cache only if Supabase succeeded or not configured
+  const existingIdx = categories.findIndex((c) => c.id === newCat.id || c.slug === newCat.slug);
+  if (existingIdx >= 0) {
+    categories[existingIdx] = newCat;
+  } else {
+    categories.push(newCat);
+  }
+  writeStoredCategories(categories);
 
   return newCat;
 }
@@ -688,31 +749,44 @@ export async function updateCategory(id: string, updates: Partial<DBCategory>): 
 
   const categories = readStoredCategories();
   const index = categories.findIndex((c) => c.id === id || c.slug === id);
-  if (index === -1) {
+  if (index === -1 && !isSupabaseConfigured()) {
     throw new Error(`Category "${id}" was not found.`);
   }
 
-  const current = categories[index];
-  if (isDefaultOtherCategory(current)) {
+  const current = index !== -1 ? categories[index] : ({} as DBCategory);
+  if (current && isDefaultOtherCategory(current)) {
     throw new Error("Default category 'Other' cannot be edited.");
   }
 
   const updated: DBCategory = {
     ...current,
     ...updates,
+    id: current.id || id,
     updated_at: new Date().toISOString(),
   };
 
-  categories[index] = updated;
-  writeStoredCategories(categories);
-
   const client = getSupabaseClient();
-  if (client) {
-    try {
-      await client.from(TABLES.categories).update(updates).eq('id', current.id);
-    } catch (err) {
-      console.warn('Failed to update category in Supabase:', err);
+  if (client && isSupabaseConfigured()) {
+    const supabaseUpdates: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+    };
+    if (updates.name !== undefined) supabaseUpdates.name = updates.name.trim();
+    if (updates.slug !== undefined) supabaseUpdates.slug = updates.slug.trim();
+    if (updates.image !== undefined) supabaseUpdates.image = updates.image || '';
+    if (updates.active !== undefined) supabaseUpdates.active = updates.active;
+    if (updates.deleted_at !== undefined) supabaseUpdates.deleted_at = updates.deleted_at;
+
+    const targetId = current.id || id;
+    const { error } = await client.from(TABLES.categories).update(supabaseUpdates).eq('id', targetId);
+    if (error) {
+      console.error('Supabase updateCategory error:', error);
+      throw new Error(formatSupabaseError(error, 'categories'));
     }
+  }
+
+  if (index !== -1) {
+    categories[index] = updated;
+    writeStoredCategories(categories);
   }
 
   return updated;
@@ -724,22 +798,30 @@ export async function setCategoryColumns(id: string, patch: Record<string, any>)
   }
   const categories = readStoredCategories();
   const index = categories.findIndex((c) => c.id === id || c.slug === id);
-  if (index === -1) return true;
-
-  categories[index] = {
-    ...categories[index],
-    ...patch,
-    updated_at: new Date().toISOString(),
-  };
-  writeStoredCategories(categories);
+  const targetId = index !== -1 ? categories[index].id : id;
 
   const client = getSupabaseClient();
-  if (client) {
-    try {
-      await client.from(TABLES.categories).update(patch).eq('id', categories[index].id);
-    } catch (err) {
-      console.warn('Failed to update category patch in Supabase:', err);
+  if (client && isSupabaseConfigured()) {
+    const cleanPatch: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+    };
+    if ('active' in patch) cleanPatch.active = patch.active;
+    if ('deleted_at' in patch) cleanPatch.deleted_at = patch.deleted_at;
+
+    const { error } = await client.from(TABLES.categories).update(cleanPatch).eq('id', targetId);
+    if (error) {
+      console.error('Supabase setCategoryColumns error:', error);
+      throw new Error(formatSupabaseError(error, 'categories'));
     }
+  }
+
+  if (index !== -1) {
+    categories[index] = {
+      ...categories[index],
+      ...patch,
+      updated_at: new Date().toISOString(),
+    };
+    writeStoredCategories(categories);
   }
 
   return true;
@@ -760,37 +842,39 @@ export async function permanentDeleteCategory(id: string): Promise<boolean> {
     throw new Error("Default category 'Other' cannot be deleted.");
   }
   const categories = readStoredCategories();
-  const filtered = categories.filter((c) => c.id !== id && c.slug !== id);
-  writeStoredCategories(filtered);
+  const match = categories.find((c) => c.id === id || c.slug === id);
+  const targetId = match ? match.id : id;
 
   const client = getSupabaseClient();
-  if (client) {
-    try {
-      await client.from(TABLES.categories).delete().eq('id', id);
-    } catch (err) {
-      console.warn('Failed to delete category from Supabase:', err);
+  if (client && isSupabaseConfigured()) {
+    const { error } = await client.from(TABLES.categories).delete().eq('id', targetId);
+    if (error) {
+      console.error('Supabase permanentDeleteCategory error:', error);
+      throw new Error(formatSupabaseError(error, 'categories'));
     }
   }
+
+  const filtered = categories.filter((c) => c.id !== id && c.slug !== id);
+  writeStoredCategories(filtered);
 
   return true;
 }
 
 export const fetchGroups = (includeDeleted = false) => listCategories({ includeDeleted });
+
 export async function saveGroup(group: Partial<DBCategory>): Promise<{ data: DBCategory; isSupabaseSynced: boolean }> {
-  let isSynced = false;
-  if (group.id) {
-    try {
-      const updated = await updateCategory(group.id, group);
-      isSynced = isSupabaseConfigured();
-      return { data: updated, isSupabaseSynced: isSynced };
-    } catch {
-      // Create if doesn't exist
-    }
+  const categories = readStoredCategories();
+  const exists = Boolean(group.id && categories.some((c) => c.id === group.id || c.slug === group.id));
+
+  if (exists && group.id) {
+    const updated = await updateCategory(group.id, group);
+    return { data: updated, isSupabaseSynced: isSupabaseConfigured() };
   }
+
   const created = await createCategory(group);
-  isSynced = isSupabaseConfigured();
-  return { data: created, isSupabaseSynced: isSynced };
+  return { data: created, isSupabaseSynced: isSupabaseConfigured() };
 }
+
 export const softDeleteGroup = softDeleteCategory;
 export const restoreGroup = restoreCategory;
 export const purgeGroupPermanently = permanentDeleteCategory;
@@ -809,7 +893,7 @@ export interface ListItemsOptions {
 
 export async function listItems(options: ListItemsOptions = {}): Promise<DBItem[]> {
   const client = getSupabaseClient();
-  if (client) {
+  if (client && isSupabaseConfigured()) {
     try {
       let query = client.from(TABLES.items).select('*');
       if (options.onlyDeleted) {
@@ -822,9 +906,13 @@ export async function listItems(options: ListItemsOptions = {}): Promise<DBItem[
       }
 
       const { data, error } = await query;
-      if (!error && Array.isArray(data) && data.length > 0) {
-        writeStoredItems(data);
-        return data;
+      if (!error && Array.isArray(data)) {
+        if (data.length > 0) {
+          writeStoredItems(data);
+          return data;
+        }
+      } else if (error) {
+        console.warn('Supabase items fetch error:', error);
       }
     } catch (err) {
       console.warn('Supabase items fetch failed, using local storage fallback:', err);
@@ -883,17 +971,29 @@ export async function createItem(item: Partial<DBItem>): Promise<DBItem> {
     updated_at: new Date().toISOString(),
   };
 
-  items.unshift(newItem);
-  writeStoredItems(items);
-
   const client = getSupabaseClient();
-  if (client) {
-    try {
-      await client.from(TABLES.items).upsert([newItem]);
-    } catch (err) {
-      console.warn('Failed to push item to Supabase:', err);
+  if (client && isSupabaseConfigured()) {
+    const supabasePayload = {
+      id: newItem.id,
+      slug: newItem.slug,
+      name: newItem.name,
+      category_id: newItem.category_id,
+      price: newItem.price,
+      original_price: newItem.original_price ?? null,
+      description: newItem.description,
+      image: newItem.image,
+      active: newItem.active,
+      deleted_at: null,
+    };
+    const { error } = await client.from(TABLES.items).upsert([supabasePayload]);
+    if (error) {
+      console.error('Supabase createItem error:', error);
+      throw new Error(formatSupabaseError(error, 'items'));
     }
   }
+
+  items.unshift(newItem);
+  writeStoredItems(items);
 
   return newItem;
 }
@@ -901,28 +1001,46 @@ export async function createItem(item: Partial<DBItem>): Promise<DBItem> {
 export async function updateItem(id: string, updates: Partial<DBItem>): Promise<DBItem> {
   const items = readStoredItems();
   const index = items.findIndex((i) => i.id === id || i.slug === id);
-  if (index === -1) {
+  if (index === -1 && !isSupabaseConfigured()) {
     throw new Error(`Product "${id}" was not found.`);
   }
 
-  const current = items[index];
+  const current = index !== -1 ? items[index] : ({} as DBItem);
   const updated: DBItem = {
     ...current,
     ...updates,
+    id: current.id || id,
     price: updates.price !== undefined ? Number(updates.price) : current.price,
     updated_at: new Date().toISOString(),
   };
 
-  items[index] = updated;
-  writeStoredItems(items);
-
   const client = getSupabaseClient();
-  if (client) {
-    try {
-      await client.from(TABLES.items).update(updates).eq('id', current.id);
-    } catch (err) {
-      console.warn('Failed to update item in Supabase:', err);
+  if (client && isSupabaseConfigured()) {
+    const supabaseUpdates: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+    };
+    if (updates.name !== undefined) supabaseUpdates.name = updates.name.trim();
+    if (updates.slug !== undefined) supabaseUpdates.slug = updates.slug;
+    if (updates.category_id !== undefined) supabaseUpdates.category_id = updates.category_id;
+    if (updates.price !== undefined) supabaseUpdates.price = Number(updates.price);
+    if (updates.original_price !== undefined)
+      supabaseUpdates.original_price = updates.original_price ? Number(updates.original_price) : null;
+    if (updates.description !== undefined) supabaseUpdates.description = updates.description;
+    if (updates.image !== undefined) supabaseUpdates.image = updates.image;
+    if (updates.active !== undefined) supabaseUpdates.active = updates.active;
+    if (updates.deleted_at !== undefined) supabaseUpdates.deleted_at = updates.deleted_at;
+
+    const targetId = current.id || id;
+    const { error } = await client.from(TABLES.items).update(supabaseUpdates).eq('id', targetId);
+    if (error) {
+      console.error('Supabase updateItem error:', error);
+      throw new Error(formatSupabaseError(error, 'items'));
     }
+  }
+
+  if (index !== -1) {
+    items[index] = updated;
+    writeStoredItems(items);
   }
 
   return updated;
@@ -931,22 +1049,30 @@ export async function updateItem(id: string, updates: Partial<DBItem>): Promise<
 export async function setItemColumns(id: string, patch: Record<string, any>): Promise<boolean> {
   const items = readStoredItems();
   const index = items.findIndex((i) => i.id === id || i.slug === id);
-  if (index === -1) return true;
-
-  items[index] = {
-    ...items[index],
-    ...patch,
-    updated_at: new Date().toISOString(),
-  };
-  writeStoredItems(items);
+  const targetId = index !== -1 ? items[index].id : id;
 
   const client = getSupabaseClient();
-  if (client) {
-    try {
-      await client.from(TABLES.items).update(patch).eq('id', items[index].id);
-    } catch (err) {
-      console.warn('Failed to update item patch in Supabase:', err);
+  if (client && isSupabaseConfigured()) {
+    const cleanPatch: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+    };
+    if ('active' in patch) cleanPatch.active = patch.active;
+    if ('deleted_at' in patch) cleanPatch.deleted_at = patch.deleted_at;
+
+    const { error } = await client.from(TABLES.items).update(cleanPatch).eq('id', targetId);
+    if (error) {
+      console.error('Supabase setItemColumns error:', error);
+      throw new Error(formatSupabaseError(error, 'items'));
     }
+  }
+
+  if (index !== -1) {
+    items[index] = {
+      ...items[index],
+      ...patch,
+      updated_at: new Date().toISOString(),
+    };
+    writeStoredItems(items);
   }
 
   return true;
@@ -958,17 +1084,20 @@ export const toggleItemActive = (id: string, active: boolean) => setItemColumns(
 
 export async function permanentDeleteItem(id: string): Promise<boolean> {
   const items = readStoredItems();
-  const filtered = items.filter((i) => i.id !== id && i.slug !== id);
-  writeStoredItems(filtered);
+  const match = items.find((i) => i.id === id || i.slug === id);
+  const targetId = match ? match.id : id;
 
   const client = getSupabaseClient();
-  if (client) {
-    try {
-      await client.from(TABLES.items).delete().eq('id', id);
-    } catch (err) {
-      console.warn('Failed to delete item from Supabase:', err);
+  if (client && isSupabaseConfigured()) {
+    const { error } = await client.from(TABLES.items).delete().eq('id', targetId);
+    if (error) {
+      console.error('Supabase permanentDeleteItem error:', error);
+      throw new Error(formatSupabaseError(error, 'items'));
     }
   }
+
+  const filtered = items.filter((i) => i.id !== id && i.slug !== id);
+  writeStoredItems(filtered);
 
   return true;
 }
@@ -978,19 +1107,79 @@ export const purgeItemPermanently = permanentDeleteItem;
 export const fetchItems = (includeDeleted = false) => listItems({ includeDeleted });
 
 export async function saveItem(item: Partial<DBItem>): Promise<{ data: DBItem; isSupabaseSynced: boolean }> {
-  let isSynced = false;
-  if (item.id) {
-    try {
-      const updated = await updateItem(item.id, item);
-      isSynced = isSupabaseConfigured();
-      return { data: updated, isSupabaseSynced: isSynced };
-    } catch {
-      // Fall through to create
-    }
+  const items = readStoredItems();
+  const exists = Boolean(item.id && items.some((i) => i.id === item.id || i.slug === item.id));
+
+  if (exists && item.id) {
+    const updated = await updateItem(item.id, item);
+    return { data: updated, isSupabaseSynced: isSupabaseConfigured() };
   }
+
   const created = await createItem(item);
-  isSynced = isSupabaseConfigured();
-  return { data: created, isSupabaseSynced: isSynced };
+  return { data: created, isSupabaseSynced: isSupabaseConfigured() };
+}
+
+export async function syncAllToSupabase(): Promise<{ syncedCategories: number; syncedItems: number; error: string | null }> {
+  const client = getSupabaseClient();
+  if (!client || !isSupabaseConfigured()) {
+    return { syncedCategories: 0, syncedItems: 0, error: 'Supabase is not configured yet. Please configure Supabase URL and Anon Key first.' };
+  }
+
+  try {
+    const categories = readStoredCategories();
+    const items = readStoredItems();
+
+    // Clean categories payload
+    const categoriesPayload = categories.map((c) => ({
+      id: c.id,
+      name: c.name,
+      slug: c.slug,
+      image: c.image || '',
+      active: c.active !== false,
+      deleted_at: c.deleted_at || null,
+    }));
+
+    // Clean items payload
+    const itemsPayload = items.map((i) => ({
+      id: i.id,
+      slug: i.slug,
+      name: i.name,
+      category_id: i.category_id || 'other',
+      price: Number(i.price) || 0,
+      original_price: i.original_price ? Number(i.original_price) : null,
+      description: i.description || '',
+      image: i.image || '',
+      active: i.active !== false,
+      deleted_at: i.deleted_at || null,
+    }));
+
+    if (categoriesPayload.length > 0) {
+      const { error: catErr } = await client.from(TABLES.categories).upsert(categoriesPayload, { onConflict: 'id' });
+      if (catErr) {
+        throw new Error(formatSupabaseError(catErr, 'categories'));
+      }
+    }
+
+    if (itemsPayload.length > 0) {
+      const { error: itemErr } = await client.from(TABLES.items).upsert(itemsPayload, { onConflict: 'id' });
+      if (itemErr) {
+        throw new Error(formatSupabaseError(itemErr, 'items'));
+      }
+    }
+
+    return {
+      syncedCategories: categoriesPayload.length,
+      syncedItems: itemsPayload.length,
+      error: null,
+    };
+  } catch (err: any) {
+    console.error('syncAllToSupabase error:', err);
+    return {
+      syncedCategories: 0,
+      syncedItems: 0,
+      error: err.message || 'Failed to sync with Supabase',
+    };
+  }
 }
 
 export function subscribeToChanges(_onChange: () => void): () => void {

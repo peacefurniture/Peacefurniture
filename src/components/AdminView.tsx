@@ -177,6 +177,17 @@ export const AdminView: React.FC<AdminViewProps> = ({
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-3">
+            {onOpenDatabaseSettings && (
+              <button
+                onClick={onOpenDatabaseSettings}
+                className="bg-white/10 hover:bg-white/15 text-white px-3 py-1.5 sm:py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Supabase Database Connection Settings"
+              >
+                <Database className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="hidden sm:inline">Database</span>
+              </button>
+            )}
+
             <button
               onClick={onGoToStore}
               className="bg-white/10 hover:bg-white/15 text-white px-3 py-1.5 sm:py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
@@ -214,7 +225,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-
             <button
               onClick={onStoreToDatabase}
               disabled={isSyncingToDb}
@@ -223,9 +233,10 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   ? 'bg-amber-500 text-white animate-pulse'
                   : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
               }`}
+              title="Sync catalogue with Supabase Cloud Database"
             >
               <Save className="w-4 h-4" />
-              <span>{isSyncingToDb ? 'Saving Catalogue...' : 'Save & Refresh'}</span>
+              <span>{isSyncingToDb ? 'Syncing to Supabase...' : isSupabaseConfigured() ? 'Sync to Supabase' : 'Refresh Catalogue'}</span>
             </button>
 
             {activeTab === 'products' ? (
