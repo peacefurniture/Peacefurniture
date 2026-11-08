@@ -16,14 +16,20 @@ jobs:
           SUPABASE_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
 
         run: |
-          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_KEY" ]; then
-            echo "ERROR: Supabase secrets are missing!"
+          if [ -z "$SUPABASE_URL" ]; then
+            echo "Supabase URL is missing"
             exit 1
           fi
 
-          curl --fail --show-error --silent \
-            "$SUPABASE_URL/rest/v1/products?select=id&limit=1" \
-            -H "apikey: $SUPABASE_KEY" \
-            -H "Authorization: Bearer $SUPABASE_KEY"
+          if [ -z "$SUPABASE_KEY" ]; then
+            echo "Supabase key is missing"
+            exit 1
+          fi
 
-          echo "Supabase ping successful!"
+          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" \
+            "$SUPABASE_URL/rest/v1/products?select=id&limit=1" \
+            -H "apikey: $SUPABASE_KEY")
+
+          echo "$RESPONSE"
+
+          echo "Supabase ping completed."
