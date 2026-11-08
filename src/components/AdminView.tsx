@@ -12,7 +12,6 @@ import {
   AlertTriangle,
   ArrowLeft,
   Layers,
-  Save,
   RotateCcw,
   ArrowUp,
   ArrowDown,
@@ -211,24 +210,10 @@ export const AdminView: React.FC<AdminViewProps> = ({
           </div>
 
           <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-            <button
-              onClick={onStoreToDatabase}
-              disabled={isSyncingToDb}
-              className={`flex-1 sm:flex-initial px-3 sm:px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md min-h-[44px] ${
-                isSyncingToDb
-                  ? 'bg-amber-500 text-white animate-pulse'
-                  : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
-              }`}
-              title="Sync catalogue with Supabase Cloud Database"
-            >
-              <Save className="w-4 h-4" />
-              <span>{isSyncingToDb ? 'Syncing...' : isSupabaseConfigured() ? 'Sync to Supabase' : 'Refresh Catalogue'}</span>
-            </button>
-
             {activeTab === 'products' ? (
               <button
                 onClick={onAddProduct}
-                className="flex-1 sm:flex-initial bg-[#E11D2A] hover:bg-[#C51322] text-white px-3 sm:px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md shadow-red-500/20 min-h-[44px]"
+                className="flex-1 sm:flex-initial bg-[#E11D2A] hover:bg-[#C51322] text-white px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md shadow-red-500/20 min-h-[44px]"
               >
                 <Plus className="w-4 h-4" />
                 <span>Add {labels.itemSingular}</span>
@@ -236,7 +221,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
             ) : activeTab === 'categories' ? (
               <button
                 onClick={onAddCategory}
-                className="flex-1 sm:flex-initial bg-[#E11D2A] hover:bg-[#C51322] text-white px-3 sm:px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md shadow-red-500/20 min-h-[44px]"
+                className="flex-1 sm:flex-initial bg-[#E11D2A] hover:bg-[#C51322] text-white px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md shadow-red-500/20 min-h-[44px]"
               >
                 <Plus className="w-4 h-4" />
                 <span>Add {labels.groupSingular}</span>
