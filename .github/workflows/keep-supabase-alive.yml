@@ -10,9 +10,20 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Ping Supabase Database
+      - name: Ping Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
         run: |
-          curl -f -X GET \
-            "${{ secrets.SUPABASE_URL }}/rest/v1/products?select=id&limit=1" \
-            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}"
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_KEY" ]; then
+            echo "ERROR: Supabase secrets are missing!"
+            exit 1
+          fi
+
+          curl --fail --show-error --silent \
+            "$SUPABASE_URL/rest/v1/products?select=id&limit=1" \
+            -H "apikey: $SUPABASE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_KEY"
+
+          echo "Supabase ping successful!"
