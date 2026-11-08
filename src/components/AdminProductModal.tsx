@@ -26,30 +26,27 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
   const [nameError, setNameError] = useState<string>('');
   const [imageError, setImageError] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
+  const [isSellingSameAsOriginal, setIsSellingSameAsOriginal] = useState(false);
 
   const [formData, setFormData] = useState<Partial<FurnitureItem>>({
     name: '',
-    category: 'dining',
-    price: 19999,
-    originalPrice: 24999,
+    category: 'other' as CategoryId,
+    price: undefined,
+    originalPrice: undefined,
     description: '',
     longDescription: '',
     image: '',
-    dimensions: {
-      width: '60 inches',
-      depth: '36 inches',
-      height: '30 inches',
-    },
-    material: 'Solid Wood & Premium Cushioning',
-    finish: 'Teak Wood Natural Matte',
-    color: 'Natural Teak',
-    seatingCapacity: 6,
+    dimensions: '',
+    material: '',
+    finish: '',
+    color: '',
+    seatingCapacity: undefined,
     rating: 4.8,
-    reviewsCount: 12,
+    reviewsCount: 0,
     inStock: true,
     isActive: true,
-    warranty: '5 Years Manufacturer Warranty',
-    tags: ['furniture', 'dining table'],
+    warranty: '',
+    tags: [],
   });
 
   const [tagInput, setTagInput] = useState('');
@@ -78,11 +75,16 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
       const resolvedCatId = resolveSelectedCategoryId(rawCat);
       setFormData({
         ...initialProduct,
+        description: initialProduct.description || initialProduct.longDescription || '',
+        longDescription: initialProduct.description || initialProduct.longDescription || '',
         category: resolvedCatId as CategoryId,
         group_id: resolvedCatId,
       });
       setTagInput(initialProduct.tags?.join(', ') || '');
       setUploadedImageName(initialProduct.name ? `${initialProduct.name} Photo` : 'Existing Product Image');
+      setIsSellingSameAsOriginal(
+        Boolean(initialProduct.originalPrice && initialProduct.price === initialProduct.originalPrice)
+      );
       setImageError('');
       setNameError('');
     } else {
@@ -91,29 +93,26 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
         name: '',
         category: defaultCatId as CategoryId,
         group_id: defaultCatId,
-        price: 24999,
-        originalPrice: 32000,
+        price: undefined,
+        originalPrice: undefined,
         description: '',
         longDescription: '',
         image: '',
-        dimensions: {
-          width: '60 inches',
-          depth: '36 inches',
-          height: '30 inches',
-        },
-        material: 'Solid Teak Wood',
-        finish: 'Natural Matte Polish',
-        color: 'Natural Wood',
-        seatingCapacity: 6,
+        dimensions: '',
+        material: '',
+        finish: '',
+        color: '',
+        seatingCapacity: undefined,
         rating: 4.8,
         reviewsCount: 0,
         inStock: true,
         isActive: true,
-        warranty: '5 Years Frame Warranty',
-        tags: ['furniture', 'modern'],
+        warranty: '',
+        tags: [],
       });
       setUploadedImageName('');
-      setTagInput('furniture, modern');
+      setTagInput('');
+      setIsSellingSameAsOriginal(false);
       setImageError('');
       setNameError('');
       if (fileInputRef.current) {
@@ -209,27 +208,43 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
         ? initialProduct.id
         : initialProduct?.id || generateUUID();
 
+    const desc = formData.description?.trim() || '';
+
+    const sellingPrice =
+      isSellingSameAsOriginal && formData.originalPrice !== undefined && formData.originalPrice !== null
+        ? Number(formData.originalPrice)
+        : formData.price !== undefined && formData.price !== null && String(formData.price) !== ''
+        ? Number(formData.price)
+        : formData.originalPrice !== undefined && formData.originalPrice !== null
+        ? Number(formData.originalPrice)
+        : 0;
+
+    const originalPriceVal =
+      formData.originalPrice !== undefined && formData.originalPrice !== null && String(formData.originalPrice) !== ''
+        ? Number(formData.originalPrice)
+        : undefined;
+
     const completeProduct: FurnitureItem = {
       id: generatedId,
       slug: generatedSlug,
       name: productNameTrimmed,
       category: resolvedCategoryId as CategoryId,
       group_id: resolvedCategoryId,
-      price: Number(formData.price) || 9999,
-      originalPrice: formData.originalPrice ? Number(formData.originalPrice) : undefined,
-      description: formData.description || 'High quality furniture made with premium materials.',
-      longDescription: formData.longDescription || formData.description,
+      price: sellingPrice,
+      originalPrice: originalPriceVal,
+      description: desc,
+      longDescription: desc,
       image: formData.image,
-      dimensions: formData.dimensions || { width: '48"', depth: '24"', height: '30"' },
-      material: formData.material || 'Solid Wood',
-      finish: formData.finish || 'Natural Finish',
-      color: formData.color || 'Natural',
+      dimensions: formData.dimensions || '',
+      material: formData.material || '',
+      finish: formData.finish || '',
+      color: formData.color || '',
       seatingCapacity: formData.seatingCapacity,
       rating: formData.rating || 4.8,
       reviewsCount: formData.reviewsCount || 0,
       inStock: formData.inStock ?? true,
       isActive: formData.isActive ?? true,
-      warranty: formData.warranty || '5 Years Warranty',
+      warranty: '',
       tags: tagsArray.length > 0 ? tagsArray : ['furniture', resolvedCategoryId || 'decor'],
     };
 
@@ -494,8 +509,31 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
             </div>
           </div>
 
-          {/* Pricing & Stock */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+          {/* Pricing & Stock (Original Price first, then Selling Price with Checkbox, then Inventory Stock) */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 items-start">
+            {/* 1. Original Price (₹) */}
+            <div>
+              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+                Original Price (₹)
+              </label>
+              <input
+                type="number"
+                min={0}
+                value={formData.originalPrice ?? ''}
+                onChange={(e) => {
+                  const val = e.target.value !== '' ? Number(e.target.value) : undefined;
+                  setFormData((prev) => ({
+                    ...prev,
+                    originalPrice: val,
+                    price: isSellingSameAsOriginal ? val : prev.price,
+                  }));
+                }}
+                placeholder="Enter original price"
+                className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-gray-900 focus:outline-none focus:border-[#E11D2A] focus:ring-1 focus:ring-[#E11D2A]"
+              />
+            </div>
+
+            {/* 2. Selling Price (₹) */}
             <div>
               <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
                 Selling Price (₹) *
@@ -503,33 +541,47 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
               <input
                 type="number"
                 required
-                min={1}
-                value={formData.price || ''}
-                onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) })}
-                placeholder="28999"
-                className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-gray-900 focus:outline-none focus:border-[#E11D2A] focus:ring-1 focus:ring-[#E11D2A]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-                Original Price (₹)
-              </label>
-              <input
-                type="number"
-                min={1}
-                value={formData.originalPrice || ''}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    originalPrice: e.target.value ? Number(e.target.value) : undefined,
-                  })
+                min={0}
+                disabled={isSellingSameAsOriginal}
+                value={
+                  isSellingSameAsOriginal
+                    ? (formData.originalPrice ?? '')
+                    : (formData.price ?? '')
                 }
-                placeholder="38000"
-                className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-gray-900 focus:outline-none focus:border-[#E11D2A] focus:ring-1 focus:ring-[#E11D2A]"
+                onChange={(e) => {
+                  const val = e.target.value !== '' ? Number(e.target.value) : undefined;
+                  setFormData((prev) => ({ ...prev, price: val }));
+                  if (isSellingSameAsOriginal && val !== formData.originalPrice) {
+                    setIsSellingSameAsOriginal(false);
+                  }
+                }}
+                placeholder="Enter selling price"
+                className={`w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-gray-900 focus:outline-none focus:border-[#E11D2A] focus:ring-1 focus:ring-[#E11D2A] ${
+                  isSellingSameAsOriginal ? 'bg-gray-100 text-gray-600 cursor-not-allowed' : ''
+                }`}
               />
+
+              {/* Checkbox button under selling price text typing field */}
+              <label className="mt-2.5 flex items-start gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={isSellingSameAsOriginal}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setIsSellingSameAsOriginal(checked);
+                    if (checked) {
+                      setFormData((prev) => ({ ...prev, price: prev.originalPrice }));
+                    }
+                  }}
+                  className="mt-0.5 w-4 h-4 rounded text-[#E11D2A] accent-[#E11D2A] cursor-pointer flex-shrink-0"
+                />
+                <span className="text-[11px] text-gray-600 leading-snug">
+                  Do you want to make selling price as original price
+                </span>
+              </label>
             </div>
 
+            {/* 3. Inventory Stock */}
             <div className="col-span-1">
               <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
                 Inventory Stock
@@ -548,37 +600,29 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
             </div>
           </div>
 
-          {/* Short Description */}
+          {/* Unified Description Field */}
           <div>
             <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-              Short Description *
-            </label>
-            <input
-              type="text"
-              required
-              value={formData.description || ''}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              placeholder="e.g. Solid wood dining table with 6 chairs. Modern design."
-              className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-gray-900 focus:outline-none focus:border-[#E11D2A] focus:ring-1 focus:ring-[#E11D2A]"
-            />
-          </div>
-
-          {/* Long Overview Description */}
-          <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-              Full Overview
+              Description *
             </label>
             <textarea
-              rows={2}
-              value={formData.longDescription || ''}
-              onChange={(e) => setFormData({ ...formData, longDescription: e.target.value })}
-              placeholder="Material details, ergonomics, care instructions..."
+              rows={3}
+              required
+              value={formData.description || ''}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  description: e.target.value,
+                  longDescription: e.target.value,
+                })
+              }
+              placeholder="Enter product description, craftsmanship, materials and dimensions..."
               className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-gray-900 focus:outline-none focus:border-[#E11D2A] focus:ring-1 focus:ring-[#E11D2A]"
             />
           </div>
 
-          {/* Specifications */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {/* Specifications (Material & Dimensions, warranty removed) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
                 Material
@@ -587,7 +631,7 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
                 type="text"
                 value={formData.material || ''}
                 onChange={(e) => setFormData({ ...formData, material: e.target.value })}
-                placeholder="Solid Teak Wood"
+                placeholder="e.g. Solid Teak Wood"
                 className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-900 focus:outline-none focus:border-[#E11D2A]"
               />
             </div>
@@ -600,7 +644,7 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
                 type="text"
                 value={
                   typeof formData.dimensions === 'object' && formData.dimensions !== null
-                    ? formData.dimensions.width
+                    ? (formData.dimensions as any).width || ''
                     : typeof formData.dimensions === 'string'
                     ? formData.dimensions
                     : ''
@@ -611,20 +655,7 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
                     dimensions: e.target.value,
                   })
                 }
-                placeholder="72W × 36D × 30H in"
-                className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-900 focus:outline-none focus:border-[#E11D2A]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-                Warranty
-              </label>
-              <input
-                type="text"
-                value={formData.warranty || ''}
-                onChange={(e) => setFormData({ ...formData, warranty: e.target.value })}
-                placeholder="5 Years Warranty"
+                placeholder="e.g. 72W × 36D × 30H in"
                 className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-900 focus:outline-none focus:border-[#E11D2A]"
               />
             </div>
@@ -639,7 +670,7 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
               type="text"
               value={tagInput}
               onChange={(e) => setTagInput(e.target.value)}
-              placeholder="dining, solid wood, 6 seater"
+              placeholder="e.g. dining, solid wood, 6 seater"
               className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-gray-900 focus:outline-none focus:border-[#E11D2A]"
             />
           </div>
