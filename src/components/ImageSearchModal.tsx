@@ -108,11 +108,8 @@ export const ImageSearchModal: React.FC<ImageSearchModalProps> = ({
               <Sparkles className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-extrabold text-gray-900 text-base leading-none flex items-center gap-1.5">
-                <span>Search by Image (AI)</span>
-                <span className="bg-red-100 text-[#E11D2A] text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-red-200">
-                  Gemini 3.5 Flash Lite
-                </span>
+              <h3 className="font-extrabold text-gray-900 text-base leading-none">
+                Search by Image (AI)
               </h3>
               <p className="text-[11px] text-gray-500 mt-1 font-medium">
                 Visual similarity search for catalog furniture
@@ -180,7 +177,7 @@ export const ImageSearchModal: React.FC<ImageSearchModalProps> = ({
             <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-center animate-pulse">
               <div className="flex items-center justify-center gap-2 text-[#E11D2A] font-bold text-xs mb-1">
                 <Sparkles className="w-4 h-4 animate-spin" />
-                <span>Gemini 3.5 Flash Lite Scanning Image...</span>
+                <span>AI Scanning Image...</span>
               </div>
               <p className="text-[11px] text-gray-600">
                 Scanning visual features, wood tones & upholstery textures to find similar catalog items (excluding exact duplicate photos).

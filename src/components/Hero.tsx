@@ -73,7 +73,7 @@ export const Hero: React.FC<HeroProps> = ({
               onChange={(e) => onSearchChange(e.target.value)}
               onFocus={onFocusSearch}
               placeholder="Search furniture (e.g. sofa, chair, table...)"
-              className="w-full text-xs sm:text-sm text-gray-800 placeholder-gray-400 bg-transparent focus:outline-none py-1.5"
+              className="w-full text-xs sm:text-sm text-gray-800 placeholder:text-gray-400/50 placeholder:font-normal bg-transparent focus:outline-none py-1.5"
             />
           </div>
 

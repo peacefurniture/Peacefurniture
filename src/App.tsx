@@ -144,7 +144,7 @@ export default function App() {
   };
 
   // Search state
-  const [searchQuery, setSearchQuery] = useState<string>('wooden dining table');
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeImageSearch, setActiveImageSearch] = useState<string | null>(null);
   const [aiSearchMatches, setAiSearchMatches] = useState<any | null>(null);
 

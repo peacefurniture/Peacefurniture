@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Search, X, SlidersHorizontal, Image as ImageIcon, Sparkles, Upload, RefreshCw } from 'lucide-react';
 import { FurnitureItem } from '../types';
 import { ProductCard } from './ProductCard';
@@ -32,24 +32,6 @@ export const SearchView: React.FC<SearchViewProps> = ({
   onClearImageSearch,
   aiSearchMatches,
 }) => {
-  const [selectedQuickChip, setSelectedQuickChip] = useState<string>(
-    searchQuery || 'wooden dining table'
-  );
-
-  const quickSearches = [
-    'wooden dining table',
-    '3 seater sofa',
-    'king size bed',
-    'office chair',
-    'marble top',
-    'wardrobe',
-  ];
-
-  const handleChipClick = (term: string) => {
-    setSelectedQuickChip(term);
-    onSearchChange(term);
-  };
-
   const displayCount = totalResultsCount ?? results.length;
 
   return (
@@ -78,8 +60,8 @@ export const SearchView: React.FC<SearchViewProps> = ({
                   onTriggerSearch();
                 }
               }}
-              placeholder="Search furniture..."
-              className="w-full text-xs sm:text-sm text-gray-900 placeholder-gray-400 bg-transparent focus:outline-none"
+              placeholder="Search furniture (e.g. dining table, sofa, bed)..."
+              className="w-full text-xs sm:text-sm text-gray-900 placeholder:text-gray-400/50 placeholder:font-normal bg-transparent focus:outline-none"
             />
             {searchQuery && (
               <button
@@ -100,26 +82,6 @@ export const SearchView: React.FC<SearchViewProps> = ({
           >
             Search
           </button>
-        </div>
-
-        {/* Quick Search Suggestions */}
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-2 mb-5">
-          <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mr-1 flex-shrink-0">
-            Popular:
-          </span>
-          {quickSearches.map((term) => (
-            <button
-              key={term}
-              onClick={() => handleChipClick(term)}
-              className={`text-xs px-3 py-1 rounded-full whitespace-nowrap transition-colors cursor-pointer border ${
-                searchQuery.toLowerCase() === term.toLowerCase()
-                  ? 'bg-red-50 text-[#E11D2A] border-red-200 font-semibold'
-                  : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-              }`}
-            >
-              {term}
-            </button>
-          ))}
         </div>
 
         {/* "Search by Image (AI)" Banner Card */}
@@ -144,7 +106,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
 
               <div className="inline-flex items-center gap-1.5 bg-[#E11D2A] text-white px-3 py-1 rounded-full text-xs font-bold mb-2 shadow-xs">
                 <Sparkles className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
-                <span>Scanned with Gemini 3.5 Flash Lite</span>
+                <span>AI Visual Search</span>
               </div>
 
               {aiSearchMatches?.scannedItem?.itemType && (
@@ -154,7 +116,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
               )}
 
               <p className="text-xs text-gray-600 mb-3 max-w-md mx-auto">
-                Displaying exact matches (100%), highly similar designs, and somewhat similar furniture pieces ranked by Gemini 3.5 Flash Lite vision.
+                Displaying exact matches, highly similar designs, and related furniture pieces.
               </p>
 
               <button
@@ -175,9 +137,6 @@ export const SearchView: React.FC<SearchViewProps> = ({
               {/* Title & Description */}
               <h3 className="font-extrabold text-gray-900 text-base sm:text-lg mb-1 tracking-tight flex items-center justify-center gap-2">
                 <span>Search by Image (AI)</span>
-                <span className="bg-red-100 text-[#E11D2A] text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-red-200">
-                  Gemini 3.5 Flash Lite
-                </span>
               </h3>
               <p className="text-xs sm:text-sm text-gray-600 mb-4 font-normal max-w-md mx-auto">
                 Upload a photo to find exact matches, highly similar items, and somewhat similar furniture pieces in the catalog.
