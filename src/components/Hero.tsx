@@ -46,7 +46,7 @@ export const Hero: React.FC<HeroProps> = ({
 
             {/* Subtitle */}
             <p className="text-xs sm:text-sm md:text-base text-gray-300 font-normal leading-relaxed mb-4 max-w-md">
-              Handcrafted luxury, comfortable living, and modern office furniture catalogue.
+              Comfortable living, and modern furniture catalogue.
             </p>
 
             {/* Red accent bar */}
